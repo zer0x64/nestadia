@@ -1,0 +1,20 @@
+[package]
+name = "nestadia"
+version = "0.1.0"
+authors = ["zer0x64"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+debugger = ["nestadia-core/debugger"]
+
+[dependencies]
+flexi_logger = "0.17.1"
+iced = {version = "0.3", features = ["image", "tokio"]}
+iced_futures = {version = "0.3", features = ["tokio"]}
+iced_native = "0.4.0"
+nestadia-core = {path = "./nestadia-core"}
+sdl2 = "0.34.3"
+structopt = "0.3.21"
