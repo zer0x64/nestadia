@@ -15,9 +15,9 @@ const CHR_BANK_SIZE: usize = 8192;
 
 trait Mapper: Send + Sync {
     fn cpu_map_read(&self, addr: u16) -> u16;
-    fn cpu_map_write(&self, addr: u16) -> u16;
+    fn cpu_map_write(&self, addr: u16) -> Option<u16>;
     fn ppu_map_read(&self, addr: u16) -> u16;
-    fn ppu_map_write(&self, addr: u16) -> u16;
+    fn ppu_map_write(&self, addr: u16) -> Option<u16>;
 }
 
 pub struct Cartridge {
@@ -71,7 +71,10 @@ impl Cartridge {
 
     pub fn cpu_write(&mut self, addr: u16, data: u8) {
         let addr = self.mapper.cpu_map_write(addr);
-        self.prg_memory[addr as usize] = data;
+
+        if let Some(addr) = addr {
+            self.prg_memory[addr as usize] = data;
+        }
     }
 
     pub fn ppu_read(&self, addr: u16) -> u8 {
@@ -81,7 +84,10 @@ impl Cartridge {
 
     pub fn ppu_write(&mut self, addr: u16, data: u8) {
         let addr = self.mapper.ppu_map_write(addr);
-        self.chr_memory[addr as usize] = data;
+        
+        if let Some(addr) = addr {
+            self.chr_memory[addr as usize] = data;
+        }
     }
 
     pub fn disassemble(&self) -> Vec<(u16, String)> {

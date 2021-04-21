@@ -14,20 +14,20 @@ impl Mapper for NRom {
     fn cpu_map_read(&self, addr: u16) -> u16 {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
 
-        return addr & mask;
+        addr & mask
     }
 
-    fn cpu_map_write(&self, addr: u16) -> u16 {
+    fn cpu_map_write(&self, addr: u16) -> Option<u16> {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
 
-        return addr & mask;
+        None
     }
 
     fn ppu_map_read(&self, addr: u16) -> u16 {
-        return addr;
+        addr
     }
 
-    fn ppu_map_write(&self, addr: u16) -> u16 {
-        return addr;
+    fn ppu_map_write(&self, addr: u16) -> Option<u16> {
+        None
     }
 }
