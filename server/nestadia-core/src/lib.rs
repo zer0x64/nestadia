@@ -66,9 +66,14 @@ impl EmulatorContext<Ppu> for Emulator {
     }
 }
 
+
 pub struct Emulator {
     pub cpu: Cpu,
     pub ppu: Ppu,
+    controller1: u8,
+    controller2: u8,
+    controller1_snapshot: u8,
+    controller2_snapshot: u8,
     cartridge: Cartridge,
     ram: [u8; RAM_SIZE as usize],
     clock_count: u8,
@@ -79,6 +84,10 @@ impl Emulator {
         let mut emulator = Self {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
+            controller1: 0,
+            controller2: 0,
+            controller1_snapshot: 0,
+            controller2_snapshot: 0,
             cartridge: Cartridge::new(rom)?,
             ram: [0u8; RAM_SIZE as usize],
             clock_count: 0,
@@ -100,6 +109,14 @@ impl Emulator {
         self.clock_count += 1;
     }
 
+    pub fn set_controller1(&mut self, state: u8) {
+        self.controller1 = state;
+    }
+
+    pub fn set_controller2(&mut self, state: u8) {
+        self.controller2 = state;
+    }
+
     pub fn reset(&mut self) {
         EmulatorContext::<Cpu>::reset(self);
         self.clock_count = 0;
@@ -115,7 +132,10 @@ impl BusInterface for Emulator {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize] = data,
             0x2000..=0x3fff => EmulatorContext::<Ppu>::write_ppu_controls(self, address & 0x07, data),
-            0x4000..=0x401f => { /*APU and Audio*/ }
+            0x4000..=0x4015 => { /*APU and Audio*/ }
+            0x4016 => self.controller1_snapshot = self.controller1,
+            0x4017 => self.controller2_snapshot = self.controller2,
+            0x4018..=0x401f => { /*APU and Audio*/ }
             0x4020..=0xffff => self.cartridge.cpu_write(address, data),
         };
     }
@@ -124,9 +144,18 @@ impl BusInterface for Emulator {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize],
             0x2000..=0x3fff => EmulatorContext::<Ppu>::read_ppu_controls(self, address & 0x07, _read_only),
-            0x4000..=0x401f => {
-                0 /*APU and Audio*/
-            }
+            0x4000..=0x4015 => {0 /*APU and Audio*/ }
+            0x4016 => {
+                let data = self.controller1_snapshot & 0x80 >> 7;
+                self.controller1_snapshot <<= 1;
+                data
+            },
+            0x4017 => {
+                let data = self.controller2_snapshot & 0x80 >> 7;
+                self.controller2_snapshot <<= 1;
+                data
+            },
+            0x4018..=0x401f => {0 /*APU and Audio*/ }
             0x4020..=0xffff => self.cartridge.cpu_read(address),
         }
     }

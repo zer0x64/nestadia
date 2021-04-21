@@ -68,6 +68,8 @@ impl Application for NestadiaIced {
             let sdl_context = sdl2::init().unwrap();
             let video_subsystem = sdl_context.video().unwrap();
 
+            let mut controller_state = 0;
+
             let window = video_subsystem
                 .window("NEStadia", NES_WIDTH, NES_HEIGHT)
                 .vulkan()
@@ -100,12 +102,78 @@ impl Application for NestadiaIced {
                             keycode: Some(Keycode::Escape),
                             ..
                         } => break 'running,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::X),
+                            ..
+                        } => controller_state |= 0x80,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Z),
+                            ..
+                        } => controller_state |= 0x40,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::A),
+                            ..
+                        } => controller_state |= 0x20,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::S),
+                            ..
+                        } => controller_state |= 0x10,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Up),
+                            ..
+                        } => controller_state |= 0x08,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Down),
+                            ..
+                        } => controller_state |= 0x04,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Left),
+                            ..
+                        } => controller_state |= 0x02,
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Right),
+                            ..
+                        } => controller_state |= 0x01,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::X),
+                            ..
+                        } => controller_state |= 0x80,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::Z),
+                            ..
+                        } => controller_state |= 0x40,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::A),
+                            ..
+                        } => controller_state &= !0x20,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::S),
+                            ..
+                        } => controller_state &= !0x10,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::Up),
+                            ..
+                        } => controller_state &= !0x08,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::Down),
+                            ..
+                        } => controller_state &= !0x04,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::Left),
+                            ..
+                        } => controller_state &= !0x02,
+                        Event::KeyUp {
+                            keycode: Some(Keycode::Right),
+                            ..
+                        } => controller_state &= !0x01,
                         _ => {}
                     }
                 }
 
                 if emulation_state.read().unwrap().is_running {
                     let mut emulation_state = emulation_state.write().unwrap();
+                    emulation_state.emulator.set_controller1(controller_state);
+
                     let mut frame = None;
                     while frame.is_none() {
                         emulation_state.emulator.clock();
