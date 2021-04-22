@@ -2283,6 +2283,7 @@ name = "nestadia-core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "flexi_logger",
  "log",
  "num_enum 0.5.1",
 ]
