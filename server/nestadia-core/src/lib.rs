@@ -2,7 +2,7 @@ mod cartridge;
 mod cpu;
 mod ppu;
 
-use std::{collections::HashMap, ops::Deref};
+use std::ops::Deref;
 use std::ops::DerefMut;
 
 use log;
@@ -10,6 +10,7 @@ use log;
 use cartridge::Cartridge;
 pub use cpu::Cpu;
 pub use ppu::Ppu;
+use ppu::PpuFrame;
 
 const RAM_SIZE: u16 = 0x800;
 
@@ -66,7 +67,6 @@ impl EmulatorContext<Ppu> for Emulator {
     }
 }
 
-
 pub struct Emulator {
     pub cpu: Cpu,
     pub ppu: Ppu,
@@ -97,8 +97,8 @@ impl Emulator {
         Ok(emulator)
     }
 
-    pub fn clock(&mut self) {
-        EmulatorContext::<Ppu>::clock(self);
+    pub fn clock(&mut self) -> Option<PpuFrame> {
+        let frame = EmulatorContext::<Ppu>::clock(self);
 
         // CPU clock is 3 times slower
         if self.clock_count % 3 == 0 {
@@ -107,6 +107,8 @@ impl Emulator {
         }
 
         self.clock_count += 1;
+
+        frame
     }
 
     pub fn set_controller1(&mut self, state: u8) {
@@ -131,7 +133,9 @@ impl BusInterface for Emulator {
     fn cpu_write(&mut self, address: u16, data: u8) {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize] = data,
-            0x2000..=0x3fff => EmulatorContext::<Ppu>::write_ppu_controls(self, address & 0x07, data),
+            0x2000..=0x3fff => {
+                EmulatorContext::<Ppu>::write_ppu_controls(self, address & 0x07, data)
+            }
             0x4000..=0x4015 => { /*APU and Audio*/ }
             0x4016 => self.controller1_snapshot = self.controller1,
             0x4017 => self.controller2_snapshot = self.controller2,
@@ -143,19 +147,25 @@ impl BusInterface for Emulator {
     fn cpu_read(&mut self, address: u16, _read_only: bool) -> u8 {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize],
-            0x2000..=0x3fff => EmulatorContext::<Ppu>::read_ppu_controls(self, address & 0x07, _read_only),
-            0x4000..=0x4015 => {0 /*APU and Audio*/ }
+            0x2000..=0x3fff => {
+                EmulatorContext::<Ppu>::read_ppu_controls(self, address, _read_only)
+            }
+            0x4000..=0x4015 => {
+                0 /*APU and Audio*/
+            }
             0x4016 => {
                 let data = self.controller1_snapshot & 0x80 >> 7;
                 self.controller1_snapshot <<= 1;
                 data
-            },
+            }
             0x4017 => {
                 let data = self.controller2_snapshot & 0x80 >> 7;
                 self.controller2_snapshot <<= 1;
                 data
-            },
-            0x4018..=0x401f => {0 /*APU and Audio*/ }
+            }
+            0x4018..=0x401f => {
+                0 /*APU and Audio*/
+            }
             0x4020..=0xffff => self.cartridge.cpu_read(address),
         }
     }
@@ -180,12 +190,17 @@ impl BusInterface for Emulator {
     }
 }
 
-#[test]
-fn test() {
-    flexi_logger::Logger::with_str("info").start().unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let rom = include_bytes!("../../test_roms/Donkey Kong.nes");
-    //let rom = include_bytes!("../test_roms/cpu_dummy_reads.nes");
-    let mut emulator = Emulator::new(rom).unwrap();
-    emulator.start();
+    #[test]
+    fn test() {
+        flexi_logger::Logger::with_str("info").start().unwrap();
+
+        let rom = include_bytes!("../../test_roms/Donkey Kong.nes");
+        //let rom = include_bytes!("../test_roms/cpu_dummy_reads.nes");
+        let mut emulator = Emulator::new(rom).unwrap();
+        // emulator.start();
+    }
 }

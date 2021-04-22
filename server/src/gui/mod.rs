@@ -177,14 +177,12 @@ impl Application for NestadiaIced {
                     let mut emulation_state = emulation_state.write().unwrap();
                     emulation_state.emulator.set_controller1(controller_state);
 
-                    let mut frame = None;
-                    while frame.is_none() {
-                        emulation_state.emulator.clock();
-                        frame = emulation_state.emulator.ppu.get_frame();
-                    }
-
-                    // Should never be None because of is_none() check
-                    let frame = frame.unwrap();
+                    let frame = loop {
+                        match emulation_state.emulator.clock() {
+                            Some(frame) => break frame,
+                            None => {},
+                        }
+                    };
 
                     // Maps 6 bit colors to RGB
                     let frame: Vec<u8> = frame
