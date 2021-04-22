@@ -12,7 +12,10 @@ enum Opt {
         #[structopt(parse(from_os_str), default_value = "./test_roms/Donkey Kong.nes")]
         rom: PathBuf,
     },
-    Server {},
+    Server {
+        #[structopt(default_value = "8080", long, short)]
+        port: u16,
+    },
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -23,8 +26,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         Opt::Gui { rom } => {
             gui::gui_start(rom)?;
         }
-        Opt::Server {} => {
-            server::actix_main()?;
+        Opt::Server { port } => {
+            server::actix_main(port)?;
         }
     };
 

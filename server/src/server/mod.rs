@@ -6,9 +6,9 @@ async fn index(web::Path((id, name)): web::Path<(u32, String)>) -> impl Responde
 }
 
 #[actix_web::main]
-pub async fn actix_main() -> std::io::Result<()> {
+pub async fn actix_main(port: u16) -> std::io::Result<()> {
     HttpServer::new(|| App::new().service(index))
-        .bind("127.0.0.1:8080")?
+        .bind(("127.0.0.1", port))?
         .run()
         .await
 }
