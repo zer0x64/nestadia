@@ -1,3 +1,4 @@
+#[cfg(feature = "debugger")]
 pub mod disassembler;
 mod opcode;
 

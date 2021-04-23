@@ -1,3 +1,4 @@
+#[cfg(feature = "debugger")]
 use super::disassembler::AddressingMode;
 use num_enum::TryFromPrimitive;
 
@@ -344,6 +345,7 @@ impl Opcode {
         }
     }
 
+    #[cfg(feature = "debugger")]
     pub fn addressing_mode(&self) -> AddressingMode {
         match self {
             Opcode::Brk => AddressingMode::Implied,

@@ -37,11 +37,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         #[cfg(feature = "gui")]
         Opt::Gui { rom } => {
             gui::gui_start(rom)?;
-        },
+        }
         #[cfg(feature = "server")]
         Opt::Server { port } => {
             server::actix_main(port)?;
-        },
+        }
     };
 
     Ok(())

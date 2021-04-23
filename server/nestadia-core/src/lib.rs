@@ -132,6 +132,7 @@ impl Emulator {
         self.clock_count = 0;
     }
 
+    #[cfg(feature = "debugger")]
     pub fn disassemble(&self, start: u16, end: u16) -> Vec<(u16, String)> {
         self.cartridge.disassemble()
     }
