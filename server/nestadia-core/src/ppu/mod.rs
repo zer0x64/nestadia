@@ -17,7 +17,7 @@ impl Ppu {
             color_pallettes: [0u8; 32],
             cycle_count: 0,
             scanline: 0,
-            frame: [0u8; 256 * 240],
+            frame: [1u8; 256 * 240],
         }
     }
 }
@@ -45,6 +45,8 @@ impl dyn EmulatorContext<Ppu> {
     }
 
     pub fn read_ppu_controls(&mut self, address: u16, _read_only: bool) -> u8 {
+        let address = address & 0x07;
+
         // TODO
 
         match address {

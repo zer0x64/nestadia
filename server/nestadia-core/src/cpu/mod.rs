@@ -116,9 +116,6 @@ impl dyn EmulatorContext<Cpu> {
             };
             self.pc = self.pc.wrapping_add(1);
 
-            // TODO: Remove log
-            log::info!("{:x?} {:x?}", opcode, self.get_ref());
-
             match &opcode {
                 Opcode::Brk => {
                     self.inst_brk();
