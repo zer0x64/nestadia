@@ -1,5 +1,5 @@
-use std::convert::TryFrom as _;
 use super::opcode::Opcode;
+use std::convert::TryFrom as _;
 
 pub enum AddressingMode {
     Accumulator,
@@ -50,7 +50,7 @@ impl AddressingMode {
                 };
 
                 format!("{:#x}", address)
-            },
+            }
             AddressingMode::Absolute => format!("{:#x}", to_u16(&data[..2])),
             AddressingMode::AbsoluteX => format!("{:#x},x", to_u16(&data[..2])),
             AddressingMode::AbsoluteY => format!("{:#x},y", to_u16(&data[..2])),
@@ -64,7 +64,8 @@ impl AddressingMode {
     }
 }
 
-pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {//HashMap<u16, String> {
+pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
+    //HashMap<u16, String> {
     let mut index: usize = 0;
     let mut disassembly = Vec::new();
 
@@ -81,13 +82,14 @@ pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {//HashMap<u16,
             } else {
                 if required_bytes < (mem.len() - index) {
                     disas += " ";
-                    disas += &opcode.addressing_mode().format(&mem[index + 1..], start + (index as u16));
+                    disas += &opcode
+                        .addressing_mode()
+                        .format(&mem[index + 1..], start + (index as u16));
                     disassembly.push((start + (index as u16), disas));
-                    index +=1;
+                    index += 1;
                     index += required_bytes;
                 }
             }
-
         } else {
             disassembly.push((start + (index as u16), "???".to_string()));
             index += 1;

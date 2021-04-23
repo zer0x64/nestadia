@@ -1,5 +1,5 @@
-use num_enum::TryFromPrimitive;
 use super::disassembler::AddressingMode;
+use num_enum::TryFromPrimitive;
 
 #[repr(u8)]
 #[derive(TryFromPrimitive, Debug)]
@@ -343,7 +343,7 @@ impl Opcode {
             Opcode::IncAbsX => 7,
         }
     }
-    
+
     pub fn addressing_mode(&self) -> AddressingMode {
         match self {
             Opcode::Brk => AddressingMode::Implied,

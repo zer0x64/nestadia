@@ -22,3 +22,5 @@ nestadia-core = { path = "./nestadia-core" }
 sdl2 = "0.34.3"
 structopt = "0.3.21"
 actix-web = "3"
+actix = "0.10.0"
+actix-web-actors = "3"

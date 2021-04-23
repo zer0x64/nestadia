@@ -1,5 +1,5 @@
-mod opcode;
 pub mod disassembler;
+mod opcode;
 
 use bitflags::bitflags;
 use log;

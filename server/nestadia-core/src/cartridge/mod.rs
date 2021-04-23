@@ -84,7 +84,7 @@ impl Cartridge {
 
     pub fn ppu_write(&mut self, addr: u16, data: u8) {
         let addr = self.mapper.ppu_map_write(addr);
-        
+
         if let Some(addr) = addr {
             self.chr_memory[addr as usize] = data;
         }

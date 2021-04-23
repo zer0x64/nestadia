@@ -180,7 +180,7 @@ impl Application for NestadiaIced {
                     let frame = loop {
                         match emulation_state.emulator.clock() {
                             Some(frame) => break frame,
-                            None => {},
+                            None => {}
                         }
                     };
 
