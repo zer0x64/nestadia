@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use iced::{Application, Settings};
 use nestadia_core::Emulator;
 
+mod rgb_value_table;
 mod sdl_window;
 
 #[cfg(feature = "debugger")]
