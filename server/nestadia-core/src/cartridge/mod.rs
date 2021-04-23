@@ -23,8 +23,9 @@ trait Mapper: Send + Sync {
 pub struct Cartridge {
     header: INesHeader,
 
-    prg_memory: Vec<u8>,
-    chr_memory: Vec<u8>,
+    prg_memory: Vec<u8>, // program ROM, used by CPU
+    chr_memory: Vec<u8>, // character ROM, used by PPU
+
     mapper: Box<dyn Mapper>,
 }
 
