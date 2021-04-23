@@ -9,6 +9,7 @@ edition = "2018"
 [features]
 default = []
 debugger = []
+true-flags = []
 
 [dependencies]
 bitflags = "1.2.1"

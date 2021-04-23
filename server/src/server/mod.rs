@@ -6,10 +6,7 @@ use std::{
 use futures::task::Poll;
 
 use actix::prelude::*;
-use actix_web::{
-    web,
-    App, HttpRequest, HttpResponse, HttpServer, Responder,
-};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 
 use nestadia_core::Emulator;

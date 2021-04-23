@@ -17,7 +17,7 @@ impl Ppu {
             color_pallettes: [0u8; 32],
             cycle_count: 0,
             scanline: 0,
-            frame: [1u8; 256 * 240],
+            frame: [0u8; 256 * 240],
         }
     }
 }
