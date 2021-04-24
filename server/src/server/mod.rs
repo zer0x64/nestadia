@@ -143,12 +143,33 @@ async fn emulator_start(req: HttpRequest, stream: web::Payload) -> impl Responde
     }
 }
 
+async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Responder {
+    let rom_name = req.match_info().get("rom_name").unwrap();
+
+    let rom = match rom_name {
+        "rom1" => include_bytes!("../../test_roms/1.Branch_Basics.nes"),
+        "rom2" => include_bytes!("../../test_roms/2.Backward_Branch.nes"),
+        "rom3" => include_bytes!("../../test_roms/3.Forward_Branch.nes"),
+        _ => return Ok(HttpResponse::NotFound().into()),
+    };
+
+    let websocket = NestadiaWs::new(rom);
+
+    match websocket {
+        Ok(websocket) => ws::start(websocket, &req, stream),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+    }
+}
+
 #[actix_web::main]
 pub async fn actix_main(port: u16) -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .route("/emulator", web::get().to(emulator_start))
+            .service(web::scope("/api")
+                .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
+            )
     })
     .bind(("127.0.0.1", port))?
     .run()
