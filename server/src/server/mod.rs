@@ -131,7 +131,7 @@ impl Actor for NestadiaWs {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if let EmulationState::NotStarted(Some(rom)) = self.state {
-            self.start_emulation(ctx, &rom);
+            // self.start_emulation(ctx, &rom);
         }
 
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
@@ -158,7 +158,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
 
-            Ok(ws::Message::Pong(msg)) => self.heartbeat = Instant::now(),
+            Ok(ws::Message::Pong(_)) => self.heartbeat = Instant::now(),
 
             // If we receive something here, it's the controller input.
             Ok(ws::Message::Binary(bin)) => {
@@ -219,6 +219,7 @@ async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder 
         state: EmulationState::NotStarted(Some(include_bytes!(
             "../../test_roms/1.Branch_Basics.nes"
         ))), // TODO: Specify flag mode and put vulnerable ROM
+        heartbeat: Instant::now(),
     };
 
     ws::start(websocket, &req, stream)
