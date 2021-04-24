@@ -140,9 +140,7 @@ impl BusInterface for Emulator {
     fn cpu_write(&mut self, address: u16, data: u8) {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize] = data,
-            0x2000..=0x3fff => {
-                EmulatorContext::<Ppu>::write_ppu_controls(self, address, data)
-            }
+            0x2000..=0x3fff => EmulatorContext::<Ppu>::write_ppu_controls(self, address, data),
             0x4000..=0x4015 => { /*APU and Audio*/ }
             0x4016 => self.controller1_snapshot = self.controller1,
             0x4017 => self.controller2_snapshot = self.controller2,

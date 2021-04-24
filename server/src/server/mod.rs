@@ -46,18 +46,15 @@ impl Stream for FrameStream {
 }
 
 impl NestadiaWs {
-    // pub fn new(rom: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-    pub fn new(rom: Option<&'static [u8]>) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(NestadiaWs { state: NotStarted(rom) })
-    }
-
-    fn start_emulation(&mut self, ctx: &mut ws::WebsocketContext<Self>, rom: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    fn start_emulation(
+        &mut self,
+        ctx: &mut ws::WebsocketContext<Self>,
+        rom: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut emulator = Emulator::new(rom)?;
 
         let (input_sender, input_receiver) = channel();
         let (frame_sender, frame_receiver) = channel();
-
-        ctx.add_message_stream(FrameStream { receiver: frame_receiver });
 
         // This thread runs the actual emulator and sync the framerate
         std::thread::spawn(move || {
@@ -80,7 +77,7 @@ impl NestadiaWs {
                         None => {}
                     }
                 }
-                    .to_vec();
+                .to_vec();
 
                 if Instant::now() < next_frame_time {
                     ::std::thread::sleep(next_frame_time.duration_since(Instant::now()));
@@ -96,6 +93,9 @@ impl NestadiaWs {
         });
 
         self.state = EmulationState::Started(input_sender);
+        ctx.add_message_stream(FrameStream {
+            receiver: frame_receiver,
+        });
 
         Ok(())
     }
@@ -129,7 +129,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                     EmulationState::NotStarted(None) => {
                         self.start_emulation(ctx, &bin);
                     } // Received ROM
-                    EmulationState::Started(input_sender) => input_sender.send((false, bin[0])).unwrap(), // TODO: plz handle result
+                    EmulationState::Started(input_sender) => {
+                        input_sender.send((false, bin[0])).unwrap()
+                    } // TODO: plz handle result
                     EmulationState::NotStarted(Some(_)) => (), // Ignore
                 }
             }
@@ -148,12 +150,13 @@ impl Handler<Frame> for NestadiaWs {
 }
 
 async fn emulator_start(req: HttpRequest, stream: web::Payload) -> impl Responder {
-    let websocket = NestadiaWs::new(Some(include_bytes!("../../test_roms/1.Branch_Basics.nes")));
+    let websocket = NestadiaWs {
+        state: EmulationState::NotStarted(Some(include_bytes!(
+            "../../test_roms/1.Branch_Basics.nes"
+        ))),
+    };
 
-    match websocket {
-        Ok(websocket) => ws::start(websocket, &req, stream),
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
-    }
+    ws::start(websocket, &req, stream)
 }
 
 async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Responder {
@@ -166,21 +169,19 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
-    let websocket = NestadiaWs::new(Some(rom));
+    let websocket = NestadiaWs {
+        state: EmulationState::NotStarted(Some(rom)),
+    };
 
-    match websocket {
-        Ok(websocket) => ws::start(websocket, &req, stream),
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
-    }
+    ws::start(websocket, &req, stream)
 }
 
 async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
-    let websocket = NestadiaWs::new(None);
+    let websocket = NestadiaWs {
+        state: EmulationState::NotStarted(None),
+    };
 
-    match websocket {
-        Ok(websocket) => ws::start(websocket, &req, stream),
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
-    }
+    ws::start(websocket, &req, stream)
 }
 
 #[actix_web::main]
@@ -189,12 +190,13 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .route("/emulator", web::get().to(emulator_start))
-            .service(web::scope("/api")
-                .route("/emulator/custom", web::get().to(custom_emulator))
-                .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
+            .service(
+                web::scope("/api")
+                    .route("/emulator/custom", web::get().to(custom_emulator))
+                    .route("/emulator/{rom_name}", web::get().to(emulator_start_param)),
             )
     })
-        .bind(("127.0.0.1", port))?
-        .run()
-        .await
+    .bind(("127.0.0.1", port))?
+    .run()
+    .await
 }
