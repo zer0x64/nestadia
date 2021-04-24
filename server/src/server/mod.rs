@@ -189,6 +189,11 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
                     .route("/emulator/custom", web::get().to(custom_emulator))
                     .route("/emulator/{rom_name}", web::get().to(emulator_start_param)),
             )
+            .service(
+                actix_files::Files::new("/", "client_build")
+                    .index_file("index.html")
+                    .disable_content_disposition(),
+            )
     })
     .bind(("127.0.0.1", port))?
     .run()
