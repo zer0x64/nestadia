@@ -16,7 +16,7 @@ class Emulator extends React.Component {
             canvas.height = 240;
         }
 
-        let ws = new WebSocket("ws://" + window.location.host + "/emulator");
+        let ws = new WebSocket("ws://" + window.location.host + "/api/emulator/rom1");
         ws.binaryType = 'arraybuffer'
 
         ws.addEventListener("message", (event) => {
