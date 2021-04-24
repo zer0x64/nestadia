@@ -49,11 +49,11 @@ mod test {
     #[test]
     fn vram_addr_mirroring() {
         let mut reg = VramAddr {
-            value: 0xAC00,
+            value: 0b1001_1110_1111_1111,
             write_to_lower: true,
         };
         reg.mirror();
-        assert_eq!(reg.get(), 0x2C00);
+        assert_eq!(reg.get(), 0b0001_1110_1111_1111);
     }
 
     #[test]
