@@ -1,6 +1,7 @@
 use std::{
     pin::Pin,
     sync::mpsc::{channel, Receiver, Sender},
+    time::{Duration, Instant},
 };
 
 use futures::task::Poll;
@@ -51,6 +52,8 @@ impl NestadiaWs {
 
         // This thread runs the actual emulator and sync the framerate
         std::thread::spawn(move || {
+            let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+
             loop {
                 // Check if we received  an input or if we close the thread
                 if let Ok((stop, input)) = input_receiver.try_recv() {
@@ -67,12 +70,19 @@ impl NestadiaWs {
                         Some(frame) => break frame,
                         None => {}
                     }
+                }
+                .to_vec();
+
+                if Instant::now() < next_frame_time {
+                    ::std::thread::sleep(next_frame_time.duration_since(Instant::now()));
                 };
 
-                match frame_sender.send(frame.to_vec()) {
+                match frame_sender.send(frame) {
                     Ok(_) => {}
                     Err(_) => break, // Stop the thread if there is an error to avoid infinite loop
                 };
+
+                next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
             }
         });
 
