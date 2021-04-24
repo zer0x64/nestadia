@@ -1,20 +1,29 @@
 use crate::EmulatorContext;
 
+pub mod registers;
+
 pub type PpuFrame = [u8; 256 * 240];
 
 pub struct Ppu {
-    frame: PpuFrame,
-    name_tables: [[u8; 1024]; 2],
-    color_pallettes: [u8; 32],
+    name_tables: [u8; 1024 * 2], // vram
+    palette_table: [u8; 32], // for color stuff
+    oam_data: [u8; 64 * 4], // object attribute memory, internal to PPU
+
+    addr_reg: registers::VramAddr, // address register pointing to name tables
+
     cycle_count: u16,
     scanline: i16,
+
+    frame: PpuFrame,
 }
 
 impl Ppu {
     pub fn new() -> Self {
         Ppu {
-            name_tables: [[0u8; 1024]; 2],
-            color_pallettes: [0u8; 32],
+            name_tables: [0u8; 1024 * 2],
+            palette_table: [0u8; 32],
+            oam_data: [0u8; 64 * 4],
+            addr_reg: registers::VramAddr::new(),
             cycle_count: 0,
             scanline: 0,
             frame: [0u8; 256 * 240],
@@ -24,7 +33,7 @@ impl Ppu {
 
 impl dyn EmulatorContext<Ppu> {
     pub fn write_ppu_controls(&mut self, address: u16, data: u8) {
-        let address = address & 0x07;
+        let address = address & 0x07; // mirror
 
         // TODO
 
@@ -35,44 +44,60 @@ impl dyn EmulatorContext<Ppu> {
             3 => { /*OAM Address*/ }
             4 => { /*OAM Data*/ }
             5 => { /*Scroll*/ }
-            6 => { /*PPU Address*/ }
-            7 => { /* PPU Data*/ }
+            6 => {
+                // write PPU Address
+                self.addr_reg.load(data);
+            }
+            7 => {
+                // read PPU Data
+                let read_addr = self.addr_reg.get();
+
+                // TODO
+            }
             _ => {
-                // Should never happen before of mask
+                // should never happen because of mask
                 unreachable!();
             }
         }
     }
 
     pub fn read_ppu_controls(&mut self, address: u16, _read_only: bool) -> u8 {
-        let address = address & 0x07;
+        let address = address & 0x07; // mirror
 
         // TODO
 
         match address {
             0 => {
-                0 /*Control*/
+                // Control
+                0
             }
             1 => {
-                0 /*Mask*/
+                // Mask
+                0
             }
             2 => {
-                0 /*Status*/
+                // Status
+                0
             }
             3 => {
-                0 /*OAM Address*/
+                // OAM Address
+                0
             }
             4 => {
-                0 /*OAM Data*/
+                // OAM Data
+                0
             }
             5 => {
-                0 /*Scroll*/
+                // Scroll
+                0
             }
             6 => {
-                0 /*PPU Address*/
+                // PPU Address
+                0
             }
             7 => {
-                0 /* PPU Data*/
+                // PPU Data
+                0
             }
             _ => {
                 // Should never happen because of mask
@@ -82,7 +107,7 @@ impl dyn EmulatorContext<Ppu> {
     }
 
     /// Returns frame when it's ready
-    pub fn clock(&mut self) -> Option<PpuFrame> {
+    pub fn clock(&mut self) -> Option<&PpuFrame> {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -92,9 +117,9 @@ impl dyn EmulatorContext<Ppu> {
             if self.scanline >= 261 {
                 self.scanline = -1;
 
-                // TODO: Use actual frame data instead
+                // TODO: write to frame
 
-                Some(self.frame)
+                Some(&self.frame)
             } else {
                 None
             }
@@ -103,3 +128,4 @@ impl dyn EmulatorContext<Ppu> {
         }
     }
 }
+

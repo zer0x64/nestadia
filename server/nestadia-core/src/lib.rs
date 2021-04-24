@@ -105,18 +105,16 @@ impl Emulator {
         Ok(emulator)
     }
 
-    pub fn clock(&mut self) -> Option<PpuFrame> {
-        let frame = EmulatorContext::<Ppu>::clock(self);
-
+    pub fn clock(&mut self) -> Option<&PpuFrame> {
         // CPU clock is 3 times slower
         if self.clock_count % 3 == 0 {
             EmulatorContext::<Cpu>::clock(self);
             self.clock_count = 0;
         }
 
-        self.clock_count += 1;
+        self.clock_count = self.clock_count.wrapping_add(1);
 
-        frame
+        EmulatorContext::<Ppu>::clock(self)
     }
 
     pub fn set_controller1(&mut self, state: u8) {
@@ -143,7 +141,7 @@ impl BusInterface for Emulator {
         match address {
             0..=0x1FFF => self.ram[(address & (RAM_SIZE - 1)) as usize] = data,
             0x2000..=0x3fff => {
-                EmulatorContext::<Ppu>::write_ppu_controls(self, address & 0x07, data)
+                EmulatorContext::<Ppu>::write_ppu_controls(self, address, data)
             }
             0x4000..=0x4015 => { /*APU and Audio*/ }
             0x4016 => self.controller1_snapshot = self.controller1,
