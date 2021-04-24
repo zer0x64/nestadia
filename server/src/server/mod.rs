@@ -11,16 +11,19 @@ use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 
 use nestadia_core::Emulator;
+use crate::server::EmulationState::NotStarted;
+
+enum EmulationState {
+    NotStarted(Option<&'static [u8]>),
+    Started(Sender<(bool, u8)>),
+}
 
 struct NestadiaWs {
-    input_sender: Sender<(bool, u8)>,
-
-    // Stored here temporarly until moved in the stream in started()
-    frame_receiver: Option<Box<Receiver<Vec<u8>>>>,
+    state: EmulationState,
 }
 
 struct FrameStream {
-    receiver: Box<Receiver<Vec<u8>>>,
+    receiver: Receiver<Vec<u8>>,
 }
 
 #[derive(Message)]
@@ -44,11 +47,18 @@ impl Stream for FrameStream {
 }
 
 impl NestadiaWs {
-    pub fn new(rom: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    // pub fn new(rom: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(rom: Option<&'static [u8]>) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(NestadiaWs { state: NotStarted(rom) })
+    }
+
+    fn start_emulation(&mut self, ctx: &mut ws::WebsocketContext<Self>, rom: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let mut emulator = Emulator::new(rom)?;
 
         let (input_sender, input_receiver) = channel();
         let (frame_sender, frame_receiver) = channel();
+
+        ctx.add_message_stream(FrameStream { receiver: frame_receiver });
 
         // This thread runs the actual emulator and sync the framerate
         std::thread::spawn(move || {
@@ -71,7 +81,7 @@ impl NestadiaWs {
                         None => {}
                     }
                 }
-                .to_vec();
+                    .to_vec();
 
                 if Instant::now() < next_frame_time {
                     ::std::thread::sleep(next_frame_time.duration_since(Instant::now()));
@@ -86,10 +96,9 @@ impl NestadiaWs {
             }
         });
 
-        Ok(NestadiaWs {
-            input_sender,
-            frame_receiver: Some(Box::new(frame_receiver)),
-        })
+        self.state = EmulationState::Started(input_sender);
+
+        Ok(())
     }
 }
 
@@ -97,19 +106,16 @@ impl Actor for NestadiaWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        // Here we should create the stream and register it to the actor.
-        let frame_receiver = self.frame_receiver.take().unwrap();
-        self.frame_receiver = None;
-
-        let stream = FrameStream {
-            receiver: frame_receiver,
-        };
-        ctx.add_message_stream(stream);
+        if let EmulationState::NotStarted(Some(rom)) = self.state {
+            self.start_emulation(ctx, &rom);
+        }
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         // Tell the emulation thread to stop
-        self.input_sender.send((true, 0)).unwrap()
+        if let EmulationState::Started(input_sender) = &self.state {
+            input_sender.send((true, 0)).unwrap()
+        }
     }
 }
 
@@ -119,7 +125,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
 
             // If we receive something here, it's the controller input.
-            Ok(ws::Message::Binary(bin)) => self.input_sender.send((false, bin[0])).unwrap(), // TODO: plz handle result
+            Ok(ws::Message::Binary(bin)) => {
+                match &self.state {
+                    EmulationState::NotStarted(None) => {
+                        self.start_emulation(ctx, &bin);
+                    } // Received ROM
+                    EmulationState::Started(input_sender) => input_sender.send((false, bin[0])).unwrap(), // TODO: plz handle result
+                    EmulationState::NotStarted(Some(_)) => (), // Ignore
+                }
+            }
             Ok(ws::Message::Close(_)) => ctx.stop(),
             _ => (),
         }
@@ -135,7 +149,7 @@ impl Handler<Frame> for NestadiaWs {
 }
 
 async fn emulator_start(req: HttpRequest, stream: web::Payload) -> impl Responder {
-    let websocket = NestadiaWs::new(include_bytes!("../../test_roms/1.Branch_Basics.nes"));
+    let websocket = NestadiaWs::new(Some(include_bytes!("../../test_roms/1.Branch_Basics.nes")));
 
     match websocket {
         Ok(websocket) => ws::start(websocket, &req, stream),
@@ -153,7 +167,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
-    let websocket = NestadiaWs::new(rom);
+    let websocket = NestadiaWs::new(Some(rom));
 
     match websocket {
         Ok(websocket) => ws::start(websocket, &req, stream),
@@ -171,7 +185,7 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
                 .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
             )
     })
-    .bind(("127.0.0.1", port))?
-    .run()
-    .await
+        .bind(("127.0.0.1", port))?
+        .run()
+        .await
 }
