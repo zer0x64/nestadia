@@ -175,6 +175,15 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     }
 }
 
+async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
+    let websocket = NestadiaWs::new(None);
+
+    match websocket {
+        Ok(websocket) => ws::start(websocket, &req, stream),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+    }
+}
+
 #[actix_web::main]
 pub async fn actix_main(port: u16) -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -182,6 +191,7 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
             .wrap(actix_web::middleware::Logger::default())
             .route("/emulator", web::get().to(emulator_start))
             .service(web::scope("/api")
+                .route("/emulator/custom", web::get().to(custom_emulator))
                 .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
             )
     })
