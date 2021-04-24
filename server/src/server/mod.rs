@@ -4,10 +4,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use serde::{Deserialize, Serialize};
+
+use futures::future::{ok, Either};
 use futures::task::Poll;
 
+use rand::Rng;
+
 use actix::prelude::*;
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_session::{CookieSession, Session};
+use actix_web::{
+    dev::{Service, ServiceRequest},
+    web, App, FromRequest, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use actix_web_actors::ws;
 
 use nestadia_core::Emulator;
@@ -23,6 +33,11 @@ struct NestadiaWs {
 
 struct FrameStream {
     receiver: Receiver<Vec<u8>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Credentials {
+    password: String,
 }
 
 #[derive(Message)]
@@ -179,15 +194,75 @@ async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Respond
     ws::start(websocket, &req, stream)
 }
 
+async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
+    let websocket = NestadiaWs {
+        state: EmulationState::NotStarted(Some(include_bytes!(
+            "../../test_roms/1.Branch_Basics.nes"
+        ))), // TODO: Specify flag mode and put vulnerable ROM
+    };
+
+    ws::start(websocket, &req, stream)
+}
+
+async fn login(data: web::Json<Credentials>, session: Session) -> impl Responder {
+    if verify_password(&data.0.password) {
+        session.set("isLoggedIn", true).unwrap();
+        HttpResponse::Ok()
+    } else {
+        HttpResponse::Unauthorized()
+    }
+}
+
+async fn logout(session: Session) -> impl Responder {
+    match session.set("isLoggedIn", false) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(_) => HttpResponse::InternalServerError(),
+    }
+}
+
+fn verify_password(password: &str) -> bool {
+    let argon2 = Argon2::default();
+    let hash = PasswordHash::new("$argon2id$v=19$m=4096,t=3,p=1$eQ1zJ3zuoDXrL6/zrhkxEg$56gPf/5+JrnpJ37o6GgGqHAjsB7g0Tzk+c4cz6QXXSI").unwrap(); // nwTdWyK4uXmzU9HkVwEDVhhe3ENCgkfa
+    argon2.verify_password(password.as_bytes(), &hash).is_ok()
+}
+
 #[actix_web::main]
 pub async fn actix_main(port: u16) -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let mut session_key = [0u8; 32];
+    rand::thread_rng().fill(&mut session_key);
+
+    HttpServer::new(move || {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
+            .wrap(CookieSession::signed(&session_key))
             .service(
                 web::scope("/api")
                     .route("/emulator/custom", web::get().to(custom_emulator))
-                    .route("/emulator/{rom_name}", web::get().to(emulator_start_param)),
+                    .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
+                    .route("/login", web::post().to(login))
+                    .route("/logout", web::get().to(logout)),
+            )
+            .service(
+                // We scope /api/debug/ differently to enforce access control
+                web::scope("/api/dev")
+                    .wrap_fn(|req, srv| {
+                        // Extract the session information
+                        let (req, pl) = req.into_parts();
+                        let session = Session::extract(&req).into_inner().unwrap();
+
+                        // Reconstruct the request
+                        let req = match ServiceRequest::from_parts(req, pl) {
+                            Ok(s) => s,
+                            Err(_) => panic!(),
+                        };
+
+                        // Check if the user is logged in
+                        match session.get("isLoggedIn") {
+                            Ok(Some(true)) => Either::Right(srv.call(req)),
+                            _ => Either::Left(ok(req.into_response(HttpResponse::Unauthorized()))),
+                        }
+                    })
+                    .route("/emulator", web::get().to(dev_emulator)),
             )
             .service(
                 actix_files::Files::new("/", "client_build")
@@ -199,3 +274,14 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
     .run()
     .await
 }
+
+// Small code to generate the hash
+// #[test]
+// fn test() {
+//     use argon2::{Argon2, password_hash::{SaltString, PasswordHasher}};
+//     let argon2 = Argon2::default();
+//     let salt = SaltString::generate(&mut rand::thread_rng());
+//     let password_hash = argon2.hash_password_simple(b"nwTdWyK4uXmzU9HkVwEDVhhe3ENCgkfa", salt.as_ref()).unwrap().to_string();
+
+//     assert_eq!(password_hash, "")
+// }
