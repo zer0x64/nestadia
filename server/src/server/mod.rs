@@ -12,6 +12,11 @@ use actix_web_actors::ws;
 
 use nestadia_core::Emulator;
 
+/// How often heartbeat pings are sent
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+/// How long before lack of client response causes a timeout
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
+
 enum EmulationState {
     NotStarted(Option<&'static [u8]>),
     Started(Sender<(bool, u8)>),
@@ -19,6 +24,7 @@ enum EmulationState {
 
 struct NestadiaWs {
     state: EmulationState,
+    heartbeat: Instant,
 }
 
 struct FrameStream {
@@ -108,6 +114,16 @@ impl Actor for NestadiaWs {
         if let EmulationState::NotStarted(Some(rom)) = self.state {
             self.start_emulation(ctx, &rom);
         }
+
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+            if Instant::now().duration_since(act.heartbeat) > CLIENT_TIMEOUT {
+                println!("Websocket Client heartbeat failed, disconnecting!");
+                ctx.stop();
+                return;
+            } else {
+                ctx.ping(b"");
+            }
+        });
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -122,6 +138,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+
+            Ok(ws::Message::Pong(msg)) => self.heartbeat = Instant::now(),
 
             // If we receive something here, it's the controller input.
             Ok(ws::Message::Binary(bin)) => {
@@ -154,6 +172,7 @@ async fn emulator_start(req: HttpRequest, stream: web::Payload) -> impl Responde
         state: EmulationState::NotStarted(Some(include_bytes!(
             "../../test_roms/1.Branch_Basics.nes"
         ))),
+        heartbeat: Instant::now(),
     };
 
     ws::start(websocket, &req, stream)
@@ -171,6 +190,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
     let websocket = NestadiaWs {
         state: EmulationState::NotStarted(Some(rom)),
+        heartbeat: Instant::now(),
     };
 
     ws::start(websocket, &req, stream)
@@ -179,6 +199,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
         state: EmulationState::NotStarted(None),
+        heartbeat: Instant::now(),
     };
 
     ws::start(websocket, &req, stream)
