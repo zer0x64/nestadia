@@ -14,7 +14,7 @@ use nestadia_core::Emulator;
 
 enum EmulationState {
     NotStarted(Option<&'static [u8]>),
-    Started(Sender<(bool, u8)>),
+    Started(Sender<EmulatorInput>),
 }
 
 struct NestadiaWs {
@@ -28,6 +28,11 @@ struct FrameStream {
 #[derive(Message)]
 #[rtype(result = "()")]
 struct Frame(Vec<u8>);
+
+enum EmulatorInput {
+    Stop,
+    Controller1(u8),
+}
 
 impl Stream for FrameStream {
     type Item = Frame;
@@ -62,12 +67,11 @@ impl NestadiaWs {
 
             loop {
                 // Check if we received  an input or if we close the thread
-                if let Ok((stop, input)) = input_receiver.try_recv() {
-                    if stop {
-                        break;
+                if let Ok(emulator_input) = input_receiver.try_recv() {
+                    match emulator_input {
+                        EmulatorInput::Stop => break,
+                        EmulatorInput::Controller1(x) => emulator.set_controller1(x),
                     }
-
-                    emulator.set_controller1(input);
                 };
 
                 // Loop until we get a frame
@@ -113,7 +117,7 @@ impl Actor for NestadiaWs {
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         // Tell the emulation thread to stop
         if let EmulationState::Started(input_sender) = &self.state {
-            input_sender.send((true, 0)).unwrap()
+            input_sender.send(EmulatorInput::Stop).unwrap()
         }
     }
 }
@@ -127,11 +131,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
             Ok(ws::Message::Binary(bin)) => {
                 match &self.state {
                     EmulationState::NotStarted(None) => {
-                        self.start_emulation(ctx, &bin);
+                        // If there's an error, just ignore it and wait for a valid ROM
+                        let _ = self.start_emulation(ctx, &bin);
                     } // Received ROM
-                    EmulationState::Started(input_sender) => {
-                        input_sender.send((false, bin[0])).unwrap()
-                    } // TODO: plz handle result
+                    EmulationState::Started(input_sender) => input_sender
+                        .send(EmulatorInput::Controller1(bin[0]))
+                        .unwrap(), // TODO: plz handle result
                     EmulationState::NotStarted(Some(_)) => (), // Ignore
                 }
             }
@@ -147,16 +152,6 @@ impl Handler<Frame> for NestadiaWs {
     fn handle(&mut self, msg: Frame, ctx: &mut Self::Context) {
         ctx.binary(msg.0)
     }
-}
-
-async fn emulator_start(req: HttpRequest, stream: web::Payload) -> impl Responder {
-    let websocket = NestadiaWs {
-        state: EmulationState::NotStarted(Some(include_bytes!(
-            "../../test_roms/1.Branch_Basics.nes"
-        ))),
-    };
-
-    ws::start(websocket, &req, stream)
 }
 
 async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Responder {
@@ -189,7 +184,6 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
-            .route("/emulator", web::get().to(emulator_start))
             .service(
                 web::scope("/api")
                     .route("/emulator/custom", web::get().to(custom_emulator))
