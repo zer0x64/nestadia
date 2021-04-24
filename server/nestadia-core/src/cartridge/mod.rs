@@ -1,10 +1,16 @@
 mod ines_header;
-mod mapper_nrom;
+mod mapper_000;
+mod mapper_002;
+mod mapper_003;
+mod mapper_066;
 
 use crate::RomParserError;
 
 use ines_header::{Flags6, INesHeader};
-use mapper_nrom::NRom;
+use mapper_000::Mapper000;
+use mapper_002::Mapper002;
+use mapper_003::Mapper003;
+use mapper_066::Mapper066;
 
 use std::convert::TryFrom as _;
 
@@ -15,7 +21,7 @@ const CHR_BANK_SIZE: usize = 8192;
 
 trait Mapper: Send + Sync {
     fn cpu_map_read(&self, addr: u16) -> u16;
-    fn cpu_map_write(&self, addr: u16) -> Option<u16>;
+    fn cpu_map_write(&mut self, addr: u16, data: u8);
     fn ppu_map_read(&self, addr: u16) -> u16;
     fn ppu_map_write(&self, addr: u16) -> Option<u16>;
 }
@@ -38,8 +44,11 @@ impl Cartridge {
         let mut prg_memory = vec![0u8; PRG_BANK_SIZE * (header.prg_size as usize)];
         let mut chr_memory = vec![0u8; CHR_BANK_SIZE * (header.chr_size as usize)];
 
-        let mapper = match header.mapper_id {
-            0 => Box::new(NRom::new(header.prg_size)),
+        let mapper: Box<dyn Mapper> = match header.mapper_id {
+            0 => Box::new(Mapper000::new(header.prg_size)),
+            2 => Box::new(Mapper002::new(header.prg_size)),
+            3 => Box::new(Mapper003::new(header.prg_size)),
+            66 => Box::new(Mapper066::new()),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
@@ -71,11 +80,7 @@ impl Cartridge {
     }
 
     pub fn cpu_write(&mut self, addr: u16, data: u8) {
-        let addr = self.mapper.cpu_map_write(addr);
-
-        if let Some(addr) = addr {
-            self.prg_memory[addr as usize] = data;
-        }
+        self.mapper.cpu_map_write(addr, data);
     }
 
     pub fn ppu_read(&self, addr: u16) -> u8 {

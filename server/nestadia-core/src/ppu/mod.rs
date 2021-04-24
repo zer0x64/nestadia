@@ -6,8 +6,8 @@ pub type PpuFrame = [u8; 256 * 240];
 
 pub struct Ppu {
     name_tables: [u8; 1024 * 2], // vram
-    palette_table: [u8; 32], // for color stuff
-    oam_data: [u8; 64 * 4], // object attribute memory, internal to PPU
+    palette_table: [u8; 32],     // for color stuff
+    oam_data: [u8; 64 * 4],      // object attribute memory, internal to PPU
 
     addr_reg: registers::VramAddr, // address register pointing to name tables
 
@@ -128,4 +128,3 @@ impl dyn EmulatorContext<Ppu> {
         }
     }
 }
-
