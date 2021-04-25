@@ -4,18 +4,28 @@ mod mapper_002;
 mod mapper_003;
 mod mapper_066;
 
-use crate::RomParserError;
-
-use ines_header::{Flags6, INesHeader};
-use mapper_000::Mapper000;
-use mapper_002::Mapper002;
-use mapper_003::Mapper003;
-use mapper_066::Mapper066;
-
 use std::convert::TryFrom as _;
 
-const PRG_BANK_SIZE: usize = 16384;
-const CHR_BANK_SIZE: usize = 8192;
+use self::ines_header::{Flags6, INesHeader};
+use self::mapper_000::Mapper000;
+use self::mapper_002::Mapper002;
+use self::mapper_003::Mapper003;
+use self::mapper_066::Mapper066;
+
+#[derive(Debug, Clone)]
+pub enum RomParserError {
+    TooShort,
+    InvalidMagicBytes,
+    MapperNotImplemented,
+}
+
+impl std::fmt::Display for RomParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", &self)
+    }
+}
+
+impl std::error::Error for RomParserError {}
 
 trait Mapper: Send + Sync {
     fn cpu_map_read(&self, addr: u16) -> u16;
@@ -25,17 +35,16 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
-    #[allow(dead_code)] // FIXME
-    header: INesHeader,
-
     prg_memory: Vec<u8>, // program ROM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
-
     mapper: Box<dyn Mapper>,
 }
 
 impl Cartridge {
     pub fn new(rom: &[u8]) -> Result<Self, RomParserError> {
+        const PRG_BANK_SIZE: usize = 16384;
+        const CHR_BANK_SIZE: usize = 8192;
+
         let header: INesHeader = INesHeader::try_from(rom)?;
 
         log::info!("ROM info: {:?}", &header);
@@ -66,28 +75,27 @@ impl Cartridge {
         chr_memory.copy_from_slice(&rom[start..end]);
 
         Ok(Cartridge {
-            header,
             prg_memory,
             chr_memory,
             mapper,
         })
     }
 
-    pub fn cpu_read(&self, addr: u16) -> u8 {
+    pub fn read_prg_mem(&self, addr: u16) -> u8 {
         let addr = self.mapper.cpu_map_read(addr);
         self.prg_memory[addr as usize]
     }
 
-    pub fn cpu_write(&mut self, addr: u16, data: u8) {
+    pub fn write_prg_mem(&mut self, addr: u16, data: u8) {
         self.mapper.cpu_map_write(addr, data);
     }
 
-    pub fn ppu_read(&self, addr: u16) -> u8 {
+    pub fn read_chr_mem(&self, addr: u16) -> u8 {
         let addr = self.mapper.ppu_map_read(addr);
         self.chr_memory[addr as usize]
     }
 
-    pub fn ppu_write(&mut self, addr: u16, data: u8) {
+    pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
         let addr = self.mapper.ppu_map_write(addr);
 
         if let Some(addr) = addr {

@@ -71,7 +71,7 @@ impl Application for NestadiaIced {
                 let mut emulation_state = self.emulation_state.write().unwrap();
                 while {
                     emulation_state.emulator.clock();
-                    emulation_state.emulator.cpu.cycles > 0
+                    emulation_state.emulator.cpu().cycles > 0
                 } {}
             }
             Message::PauseUnpause => {
@@ -102,7 +102,7 @@ impl Application for NestadiaIced {
             });
         }
 
-        let cpu = self.emulation_state.read().unwrap().emulator.cpu.clone();
+        let cpu = self.emulation_state.read().unwrap().emulator.cpu().clone();
 
         // Filter the disassembly to show only part of it
         let mut disassembly = Vec::new();

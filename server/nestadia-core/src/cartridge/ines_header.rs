@@ -1,9 +1,8 @@
-use bitflags::bitflags;
 use std::convert::TryFrom;
 
-use crate::RomParserError;
+use bitflags::bitflags;
 
-const MAGIC_BYTES: [u8; 4] = [0x4e, 0x45, 0x53, 0x1a];
+use crate::cartridge::RomParserError;
 
 #[derive(Debug)]
 pub struct INesHeader {
@@ -53,6 +52,8 @@ impl TryFrom<&[u8]> for INesHeader {
     type Error = RomParserError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        const MAGIC_BYTES: [u8; 4] = [0x4e, 0x45, 0x53, 0x1a];
+
         if data.len() < 16 {
             return Err(RomParserError::TooShort);
         };

@@ -1,4 +1,4 @@
-use crate::EmulatorContext;
+use crate::bus::PpuBus;
 
 /// Registers definitions
 pub mod registers;
@@ -6,19 +6,16 @@ pub mod registers;
 pub type PpuFrame = [u8; 256 * 240];
 
 pub struct Ppu {
-    // memory
+    // internal memory
+    palette_table: [u8; 32], // For color stuff
     #[allow(dead_code)] // FIXME
-    name_tables: [u8; 1024 * 2], // VRAM
-    palette_table: [u8; 32],     // For color stuff
-    #[allow(dead_code)] // FIXME
-    oam_data: [u8; 64 * 4],      // Object Attribute Memory, internal to PPU
+    oam_data: [u8; 64 * 4], // Object Attribute Memory, internal to PPU
 
     // registers
     addr_reg: registers::VramAddr, // Address register pointing to name tables
     ctrl_reg: registers::ControllerReg,
 
     // emulation-specific internal stuff
-    last_data_on_bus: u8,
     cycle_count: u16,
     scanline: i16,
     frame: PpuFrame,
@@ -33,26 +30,22 @@ impl Default for Ppu {
 impl Ppu {
     pub fn new() -> Self {
         Ppu {
-            name_tables: [0u8; 1024 * 2],
             palette_table: [0u8; 32],
             oam_data: [0u8; 64 * 4],
 
             addr_reg: registers::VramAddr::new(),
             ctrl_reg: registers::ControllerReg::default(),
 
-            last_data_on_bus: 0,
             cycle_count: 0,
             scanline: 0,
             frame: [0u8; 256 * 240],
         }
     }
-}
 
-impl dyn EmulatorContext<Ppu> {
-    pub fn ppu_write_register(&mut self, address: u16, data: u8) {
-        let address = address & 0x07; // mirror
+    pub fn write_ppu_register(&mut self, bus: &mut PpuBus<'_>, addr: u16, data: u8) {
+        let addr = addr & 0x07; // mirror
 
-        match address {
+        match addr {
             0 => {
                 // Write Control register
                 self.ctrl_reg = registers::ControllerReg::from_bits_truncate(data);
@@ -83,22 +76,21 @@ impl dyn EmulatorContext<Ppu> {
                 #[allow(unused_variables)] // FIXME
                 let write_addr = self.addr_reg.get();
 
-                // All PPU data writes increment the nametable address
-                let inc_step = self.ctrl_reg.vram_addr_increment();
-                self.addr_reg.inc(inc_step);
+                // All PPU data writes increment the nametable addr
+                self.increment_vram_addr();
 
                 // TODO: write to the right place
             }
             _ => {
-                unreachable!("unexpected write to mirrored space {}", address);
+                unreachable!("unexpected write to mirrored space {}", addr);
             }
         }
     }
 
-    pub fn ppu_read_register(&mut self, address: u16, _read_only: bool) -> u8 {
-        let address = address & 0x07; // mirror
+    pub fn read_ppu_register(&mut self, bus: &mut PpuBus<'_>, addr: u16) -> u8 {
+        let addr = addr & 0x07; // mirror
 
-        match address {
+        match addr {
             0 => {
                 // Control - not readable
                 0
@@ -133,35 +125,34 @@ impl dyn EmulatorContext<Ppu> {
                 // Address to read data from
                 let read_addr = self.addr_reg.get();
 
-                // All PPU data reads increment the nametable address
-                let inc_step = self.ctrl_reg.vram_addr_increment();
-                self.addr_reg.inc(inc_step);
+                // All PPU data reads increment the nametable addr
+                self.increment_vram_addr();
 
-                // PPU has to fetch the data and keep it in internal buffer.
-                // Read returns the data fetched from the previous load operation.
-                let read_data = self.last_data_on_bus;
+                match read_addr {
+                    // addresses mapped to PPU bus
+                    0..=0x1FFF => bus.read_chr_mem(read_addr),
+                    0x2000..=0x2FFF => bus.read_name_tables(read_addr),
 
-                self.last_data_on_bus = match read_addr {
-                    0..=0x1FFF => todo!("read from chr_rom"),
-                    0x2000..=0x2FFF => todo!("name tables mirroring for {}", read_addr),
+                    // Unused addr space
                     0x3000..=0x3EFF => {
-                        log::warn!("address space 0x3000..0x3EFF is not expected to be used, but 0x{:#X} was requested", read_addr);
+                        log::warn!("addr space 0x3000..0x3EFF is not expected to be used, but 0x{:#X} was requested", read_addr);
                         0
                     }
-                    0x3F00..=0x3FFF => self.palette_table[usize::from(read_addr - 0x3F00)],
-                    _ => unreachable!("unexpected access to mirrored space {}", read_addr),
-                };
 
-                read_data
+                    // Palette table is not behind bus, it can be directly returned
+                    0x3F00..=0x3FFF => self.palette_table[usize::from(read_addr - 0x3F00)],
+
+                    _ => unreachable!("unexpected access to mirrored space {}", read_addr),
+                }
             }
             _ => {
-                unreachable!("unexpected access to mirrored space {}", address);
+                unreachable!("unexpected access to mirrored space {}", addr);
             }
         }
     }
 
     /// Returns frame when it's ready
-    pub fn clock(&mut self) -> Option<&PpuFrame> {
+    pub fn clock(&mut self, bus: &mut PpuBus<'_>) -> Option<&PpuFrame> {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -180,4 +171,10 @@ impl dyn EmulatorContext<Ppu> {
         // Frame is not ready yet
         None
     }
+
+    fn increment_vram_addr(&mut self) {
+        let inc_step = self.ctrl_reg.vram_addr_increment();
+        self.addr_reg.inc(inc_step);
+    }
 }
+
