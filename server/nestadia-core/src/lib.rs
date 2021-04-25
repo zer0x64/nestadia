@@ -75,7 +75,7 @@ impl EmulatorContext<Ppu> for Emulator {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum ExecutionMode {
     Ring0,
     Ring3,

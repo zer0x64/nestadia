@@ -36,7 +36,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     };
 
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted((Some(rom), ExecutionMode::Ring3)),
+        state: EmulationState::Ready { rom, exec_mode: ExecutionMode::Ring3 },
         heartbeat: Instant::now(),
     };
 
@@ -45,7 +45,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
 async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted((None, ExecutionMode::Ring3)),
+        state: EmulationState::Waiting { exec_mode: ExecutionMode::Ring3 },
         heartbeat: Instant::now(),
     };
 
@@ -54,10 +54,10 @@ async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Respond
 
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted((
-            Some(include_bytes!("../../test_roms/1.Branch_Basics.nes")),
-            ExecutionMode::Ring0,
-        )), // TODO: Specify flag mode and put vulnerable ROM
+        state: EmulationState::Ready {
+            rom: include_bytes!("../../test_roms/1.Branch_Basics.nes"),
+            exec_mode: ExecutionMode::Ring0,
+        }, // TODO: Specify flag mode and put vulnerable ROM
         heartbeat: Instant::now(),
     };
 

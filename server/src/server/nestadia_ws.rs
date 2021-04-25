@@ -18,8 +18,9 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub enum EmulationState {
-    NotStarted((Option<&'static [u8]>, ExecutionMode)),
-    Started(Sender<EmulatorInput>),
+    Waiting { exec_mode: ExecutionMode }, // wait for a user-provided ROM
+    Ready { rom: &'static [u8], exec_mode: ExecutionMode }, // ready to start immediately
+    Started(Sender<EmulatorInput>), // up and running
 }
 
 pub struct NestadiaWs {
@@ -56,71 +57,14 @@ impl Stream for FrameStream {
     }
 }
 
-impl NestadiaWs {
-    fn start_emulation(
-        &mut self,
-        ctx: &mut ws::WebsocketContext<Self>,
-        rom: &[u8],
-        execution_mode: ExecutionMode,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut emulator = Emulator::new(rom, execution_mode)?;
-
-        let (input_sender, input_receiver) = channel();
-        let (frame_sender, frame_receiver) = channel();
-
-        // This thread runs the actual emulator and sync the framerate
-        std::thread::spawn(move || {
-            let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
-
-            loop {
-                // Check if we received  an input or if we close the thread
-                if let Ok(emulator_input) = input_receiver.try_recv() {
-                    match emulator_input {
-                        EmulatorInput::Stop => break,
-                        EmulatorInput::Controller1(x) => emulator.set_controller1(x),
-                    }
-                };
-
-                // Loop until we get a frame
-                let frame = loop {
-                    match emulator.clock() {
-                        Some(frame) => break frame,
-                        None => {}
-                    }
-                }
-                .to_vec();
-
-                if Instant::now() < next_frame_time {
-                    ::std::thread::sleep(next_frame_time.duration_since(Instant::now()));
-                };
-
-                match frame_sender.send(frame) {
-                    Ok(_) => {}
-                    Err(_) => break, // Stop the thread if there is an error to avoid infinite loop
-                };
-
-                next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
-            }
-        });
-
-        self.state = EmulationState::Started(input_sender);
-        ctx.add_message_stream(FrameStream {
-            receiver: frame_receiver,
-        });
-
-        Ok(())
-    }
-}
-
 impl Actor for NestadiaWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        if let EmulationState::NotStarted((Some(rom), e)) = &self.state {
-            let e = e.clone();
-
-            // ROMs are hardcoded, so this shouldn't fail
-            self.start_emulation(ctx, &rom, e).unwrap()
+        if let EmulationState::Ready { rom, exec_mode } = &self.state {
+            // At this point, ROMs are hardcoded, so this shouldn't fail
+            let sender = start_emulation(ctx, rom, *exec_mode).unwrap();
+            self.state = EmulationState::Started(sender);
         }
 
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
@@ -152,16 +96,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
             // If we receive something here, it's the controller input.
             Ok(ws::Message::Binary(bin)) => {
                 match &mut self.state {
-                    EmulationState::NotStarted((None, e)) => {
-                        let e = e.clone();
-
-                        // If there's an error, just ignore it and wait for a valid ROM
-                        let _ = self.start_emulation(ctx, &bin, e);
+                    EmulationState::Waiting { exec_mode } => {
+                        match start_emulation(ctx, &bin, *exec_mode) {
+                            Ok(sender) => self.state = EmulationState::Started(sender),
+                            // If there's an error, just ignore it and wait for a valid ROM
+                            Err(_) => (),
+                        }
                     } // Received ROM
                     EmulationState::Started(input_sender) => input_sender
                         .send(EmulatorInput::Controller1(bin[0]))
                         .unwrap(), // TODO: plz handle result
-                    EmulationState::NotStarted((Some(_), _)) => (), // Ignore
+                    EmulationState::Ready { .. } => (), // Ignore
                 }
             }
             Ok(ws::Message::Close(_)) => ctx.stop(),
@@ -177,3 +122,56 @@ impl Handler<Frame> for NestadiaWs {
         ctx.binary(msg.0)
     }
 }
+
+fn start_emulation(
+    ctx: &mut ws::WebsocketContext<NestadiaWs>,
+    rom: &[u8],
+    execution_mode: ExecutionMode,
+) -> Result<Sender<EmulatorInput>, Box<dyn std::error::Error>> {
+    let mut emulator = Emulator::new(rom, execution_mode)?;
+
+    let (input_sender, input_receiver) = channel();
+    let (frame_sender, frame_receiver) = channel();
+
+    // This thread runs the actual emulator and sync the framerate
+    std::thread::spawn(move || {
+        let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+
+        loop {
+            // Check if we received  an input or if we close the thread
+            if let Ok(emulator_input) = input_receiver.try_recv() {
+                match emulator_input {
+                    EmulatorInput::Stop => break,
+                    EmulatorInput::Controller1(x) => emulator.set_controller1(x),
+                }
+            };
+
+            // Loop until we get a frame
+            let frame = loop {
+                match emulator.clock() {
+                    Some(frame) => break frame,
+                    None => {}
+                }
+            }
+            .to_vec();
+
+            if Instant::now() < next_frame_time {
+                std::thread::sleep(next_frame_time.duration_since(Instant::now()));
+            };
+
+            match frame_sender.send(frame) {
+                Ok(_) => {}
+                Err(_) => break, // Stop the thread if there is an error to avoid infinite loop
+            };
+
+            next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+        }
+    });
+
+    ctx.add_message_stream(FrameStream {
+        receiver: frame_receiver,
+    });
+
+    Ok(input_sender)
+}
+
