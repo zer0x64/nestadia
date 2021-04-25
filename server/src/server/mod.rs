@@ -83,6 +83,16 @@ fn verify_password(password: &str) -> bool {
     argon2.verify_password(password.as_bytes(), &hash).is_ok()
 }
 
+async fn flag(_req: HttpRequest) -> impl Responder {
+    #[cfg(not(feature = "true-flags"))]
+    let flag = include_str!("../../flags/flag1-debug.txt");
+
+    #[cfg(feature = "true-flags")]
+    let flag = include_str!("../../flags/flag1-prod.txt");
+
+    flag
+}
+
 #[actix_web::main]
 pub async fn actix_main(port: u16) -> std::io::Result<()> {
     let mut session_key = [0u8; 32];
@@ -119,7 +129,8 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
                             _ => Either::Left(ok(req.into_response(HttpResponse::Unauthorized()))),
                         }
                     })
-                    .route("/emulator", web::get().to(dev_emulator)),
+                    .route("/emulator", web::get().to(dev_emulator))
+                    .route("/flag", web::get().to(flag)),
             )
             .service(
                 actix_files::Files::new("/", "client_build")
