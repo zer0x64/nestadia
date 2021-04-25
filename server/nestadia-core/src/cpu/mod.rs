@@ -6,13 +6,25 @@ use bitflags::bitflags;
 use log;
 use std::convert::TryFrom as _;
 
-use crate::EmulatorContext;
+use crate::{EmulatorContext, ExecutionMode};
 use opcode::Opcode;
 
 const STACK_BASE: u16 = 0x100;
 const PC_START: u16 = 0xfffc;
 const IRQ_HANDLER: u16 = 0xfffe;
 const NMI_HANDLER: u16 = 0xfffa;
+
+#[cfg(not(feature = "true-flags"))]
+const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-debug.txt");
+
+#[cfg(feature = "true-flags")]
+const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-prod.txt");
+
+#[cfg(not(feature = "true-flags"))]
+const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-debug.txt");
+
+#[cfg(feature = "true-flags")]
+const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-prod.txt");
 
 bitflags! {
     pub struct StatusRegister: u8 {
@@ -36,10 +48,12 @@ pub struct Cpu {
     pub pc: u16,
     pub cycles: u8,
     pub status_register: StatusRegister,
+
+    execution_mode: ExecutionMode,
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub fn new(execution_mode: ExecutionMode) -> Self {
         Self {
             a: 0,
             x: 0,
@@ -48,6 +62,7 @@ impl Cpu {
             pc: 0,
             cycles: 0,
             status_register: StatusRegister::empty(),
+            execution_mode,
         }
     }
 }
@@ -506,6 +521,16 @@ impl dyn EmulatorContext<Cpu> {
                     let (addr, _) = self.am_abx();
                     let op = self.cpu_read(addr, false);
                     self.inst_ror(op);
+                }
+
+                Opcode::FlagAcc => {
+                    let flag = match self.execution_mode {
+                        ExecutionMode::Ring0 => FLAG3,
+                        ExecutionMode::Ring3 => FLAG4,
+                    };
+
+                    let index = (self.a as usize) % flag.len();
+                    self.a = flag[index];
                 }
 
                 Opcode::StaIndX => {

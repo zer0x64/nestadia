@@ -75,6 +75,12 @@ impl EmulatorContext<Ppu> for Emulator {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum ExecutionMode {
+    Ring0,
+    Ring3,
+}
+
 pub struct Emulator {
     pub cpu: Cpu,
     pub ppu: Ppu,
@@ -88,9 +94,9 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(rom: &[u8]) -> Result<Self, RomParserError> {
+    pub fn new(rom: &[u8], execution_mode: ExecutionMode) -> Result<Self, RomParserError> {
         let mut emulator = Self {
-            cpu: Cpu::new(),
+            cpu: Cpu::new(execution_mode),
             ppu: Ppu::new(),
             controller1: 0,
             controller2: 0,
@@ -190,20 +196,5 @@ impl BusInterface for Emulator {
                 0
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        flexi_logger::Logger::with_str("info").start().unwrap();
-
-        let rom = include_bytes!("../../test_roms/Donkey Kong.nes");
-        //let rom = include_bytes!("../test_roms/cpu_dummy_reads.nes");
-        let mut emulator = Emulator::new(rom).unwrap();
-        // emulator.start();
     }
 }

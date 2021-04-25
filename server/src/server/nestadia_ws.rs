@@ -10,7 +10,7 @@ use log::info;
 use actix::prelude::*;
 use actix_web_actors::ws;
 
-use nestadia_core::Emulator;
+use nestadia_core::{Emulator, ExecutionMode};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -18,7 +18,7 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub enum EmulationState {
-    NotStarted(Option<&'static [u8]>),
+    NotStarted((Option<&'static [u8]>, ExecutionMode)),
     Started(Sender<EmulatorInput>),
 }
 
@@ -61,8 +61,9 @@ impl NestadiaWs {
         &mut self,
         ctx: &mut ws::WebsocketContext<Self>,
         rom: &[u8],
+        execution_mode: ExecutionMode,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut emulator = Emulator::new(rom)?;
+        let mut emulator = Emulator::new(rom, execution_mode)?;
 
         let (input_sender, input_receiver) = channel();
         let (frame_sender, frame_receiver) = channel();
@@ -115,9 +116,11 @@ impl Actor for NestadiaWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        if let EmulationState::NotStarted(Some(rom)) = self.state {
+        if let EmulationState::NotStarted((Some(rom), e)) = &self.state {
+            let e = e.clone();
+
             // ROMs are hardcoded, so this shouldn't fail
-            self.start_emulation(ctx, &rom).unwrap()
+            self.start_emulation(ctx, &rom, e).unwrap()
         }
 
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
@@ -148,15 +151,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
 
             // If we receive something here, it's the controller input.
             Ok(ws::Message::Binary(bin)) => {
-                match &self.state {
-                    EmulationState::NotStarted(None) => {
+                match &mut self.state {
+                    EmulationState::NotStarted((None, e)) => {
+                        let e = e.clone();
+
                         // If there's an error, just ignore it and wait for a valid ROM
-                        let _ = self.start_emulation(ctx, &bin);
+                        let _ = self.start_emulation(ctx, &bin, e);
                     } // Received ROM
                     EmulationState::Started(input_sender) => input_sender
                         .send(EmulatorInput::Controller1(bin[0]))
                         .unwrap(), // TODO: plz handle result
-                    EmulationState::NotStarted(Some(_)) => (), // Ignore
+                    EmulationState::NotStarted((Some(_), _)) => (), // Ignore
                 }
             }
             Ok(ws::Message::Close(_)) => ctx.stop(),

@@ -18,6 +18,8 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 
+use nestadia_core::ExecutionMode;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Credentials {
     password: String,
@@ -34,7 +36,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     };
 
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted(Some(rom)),
+        state: EmulationState::NotStarted((Some(rom), ExecutionMode::Ring3)),
         heartbeat: Instant::now(),
     };
 
@@ -43,7 +45,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
 async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted(None),
+        state: EmulationState::NotStarted((None, ExecutionMode::Ring3)),
         heartbeat: Instant::now(),
     };
 
@@ -52,9 +54,10 @@ async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Respond
 
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
-        state: EmulationState::NotStarted(Some(include_bytes!(
-            "../../test_roms/1.Branch_Basics.nes"
-        ))), // TODO: Specify flag mode and put vulnerable ROM
+        state: EmulationState::NotStarted((
+            Some(include_bytes!("../../test_roms/1.Branch_Basics.nes")),
+            ExecutionMode::Ring0,
+        )), // TODO: Specify flag mode and put vulnerable ROM
         heartbeat: Instant::now(),
     };
 
