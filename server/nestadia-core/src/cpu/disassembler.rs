@@ -79,16 +79,14 @@ pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
             if required_bytes < 1 {
                 disassembly.push((start + (index as u16), disas));
                 index += 1;
-            } else {
-                if required_bytes < (mem.len() - index) {
-                    disas += " ";
-                    disas += &opcode
-                        .addressing_mode()
-                        .format(&mem[index + 1..], start + (index as u16));
-                    disassembly.push((start + (index as u16), disas));
-                    index += 1;
-                    index += required_bytes;
-                }
+            } else if required_bytes < (mem.len() - index) {
+                disas += " ";
+                disas += &opcode
+                    .addressing_mode()
+                    .format(&mem[index + 1..], start + (index as u16));
+                disassembly.push((start + (index as u16), disas));
+                index += 1;
+                index += required_bytes;
             }
         } else {
             disassembly.push((start + (index as u16), "???".to_string()));

@@ -119,22 +119,16 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
             emulation_state.emulator.set_controller1(controller_state);
 
             let frame = loop {
-                match emulation_state.emulator.clock() {
-                    Some(frame) => break frame,
-                    None => {}
+                if let Some(frame) = emulation_state.emulator.clock() {
+                    break frame;
                 }
             };
 
             // Maps 6 bit colors to RGB
             let frame: Vec<u8> = frame
                 .iter()
-                .flat_map(|c| {
-                    match RGB_VALUE_TABLE.get(*c as usize) {
-                        Some(rgb) => rgb,
-                        None => &[0x00, 0x00, 0x00],
-                    }
-                    .to_vec()
-                })
+                .flat_map(|c| RGB_VALUE_TABLE.get(*c as usize).unwrap_or(&[0x00, 0x00, 0x00]))
+                .copied()
                 .collect();
 
             texture.update(None, &frame, 256 * 3).unwrap();

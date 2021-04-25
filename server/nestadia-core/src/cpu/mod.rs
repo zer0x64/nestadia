@@ -2,17 +2,18 @@
 pub mod disassembler;
 mod opcode;
 
-use bitflags::bitflags;
-use log;
 use std::convert::TryFrom as _;
 
-use crate::{EmulatorContext, ExecutionMode};
-use opcode::Opcode;
+use bitflags::bitflags;
 
-const STACK_BASE: u16 = 0x100;
-const PC_START: u16 = 0xfffc;
-const IRQ_HANDLER: u16 = 0xfffe;
-const NMI_HANDLER: u16 = 0xfffa;
+use crate::{EmulatorContext, ExecutionMode};
+use self::opcode::Opcode;
+
+const STACK_BASE: u16 = 0x0100;
+const PC_START: u16 = 0xFFFC;
+const IRQ_HANDLER: u16 = 0xFFFE;
+#[allow(unused_variables)] // FIXME
+const NMI_HANDLER: u16 = 0xFFFA;
 
 #[cfg(not(feature = "true-flags"))]
 const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-debug.txt");
@@ -80,6 +81,7 @@ impl dyn EmulatorContext<Cpu> {
             | ((self.cpu_read(PC_START.wrapping_add(1), false) as u16) << 8);
     }
 
+    #[allow(dead_code)] // FIXME
     pub fn irq(&mut self) {
         if !self.status_register.contains(StatusRegister::I) {
             // Push current PC
@@ -100,6 +102,7 @@ impl dyn EmulatorContext<Cpu> {
         }
     }
 
+    #[allow(dead_code)] // FIXME
     pub fn nmi(&mut self) {
         // Push current PC
         self.stack_push(((self.pc >> 8) & 0xff) as u8);
@@ -1056,6 +1059,8 @@ impl dyn EmulatorContext<Cpu> {
 
     // Instructions
     fn inst_adc(&mut self, op: u8) {
+        #![allow(clippy::many_single_char_names)]
+
         let mut result: u16 = (self.a as u16).wrapping_add(op as u16);
 
         if self.status_register.contains(StatusRegister::C) {

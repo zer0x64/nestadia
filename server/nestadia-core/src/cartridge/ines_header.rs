@@ -72,7 +72,7 @@ impl TryFrom<&[u8]> for INesHeader {
         let flags9 = Flags9::from_bits_truncate(data[9]);
         let flags10 = Flags10::from_bits_truncate(data[10]);
 
-        return Ok(INesHeader {
+        Ok(INesHeader {
             mapper_id,
             prg_size,
             chr_size,
@@ -81,6 +81,6 @@ impl TryFrom<&[u8]> for INesHeader {
             flags8,
             flags9,
             flags10,
-        });
+        })
     }
 }

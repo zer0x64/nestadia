@@ -3,6 +3,9 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
+#[cfg(not(any(feature = "gui", feature = "server")))]
+compile_error!("You need to select at least one feature!");
+
 #[cfg(feature = "gui")]
 mod gui;
 
@@ -23,23 +26,16 @@ enum Opt {
     },
 }
 
-#[cfg(not(any(feature = "gui", feature = "server")))]
-compile_error!("You need to select at least one feature!");
-
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
     flexi_logger::Logger::with_str("info").start().unwrap();
 
     match opt {
         #[cfg(feature = "gui")]
-        Opt::Gui { rom } => {
-            gui::gui_start(rom)?;
-        }
+        Opt::Gui { rom } => gui::gui_start(rom)?,
         #[cfg(feature = "server")]
-        Opt::Server { port } => {
-            server::actix_main(port)?;
-        }
-    };
+        Opt::Server { port } => server::actix_main(port)?,
+    }
 
     Ok(())
 }

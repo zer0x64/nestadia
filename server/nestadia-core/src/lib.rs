@@ -2,15 +2,14 @@ mod cartridge;
 mod cpu;
 mod ppu;
 
+pub use cpu::Cpu;
+pub use ppu::Ppu;
+
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use log;
-
-use cartridge::Cartridge;
-pub use cpu::Cpu;
-pub use ppu::Ppu;
-use ppu::PpuFrame;
+use self::cartridge::Cartridge;
+use self::ppu::PpuFrame;
 
 const RAM_SIZE: u16 = 0x800;
 
@@ -137,6 +136,7 @@ impl Emulator {
     }
 
     #[cfg(feature = "debugger")]
+    #[allow(unused_variables)] // FIXME
     pub fn disassemble(&self, start: u16, end: u16) -> Vec<(u16, String)> {
         self.cartridge.disassemble()
     }

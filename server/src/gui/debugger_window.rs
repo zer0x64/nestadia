@@ -10,7 +10,6 @@ use iced::{
     scrollable, Application, Clipboard, Column, Command, Element, Row, Scrollable, Subscription,
     Text,
 };
-use iced_native;
 
 use nestadia_core::{Emulator, ExecutionMode};
 
@@ -49,12 +48,12 @@ impl Application for NestadiaIced {
         let emulation_state_sdl = emulation_state.clone();
 
         std::thread::spawn(move || {
-            super::sdl_window::start_game(emulation_state_sdl.clone());
+            super::sdl_window::start_game(emulation_state_sdl);
         });
 
         (
             NestadiaIced {
-                emulation_state: emulation_state,
+                emulation_state,
                 scrollable_state: scrollable::State::new(),
                 disassembly: Vec::new(),
             },
@@ -95,11 +94,11 @@ impl Application for NestadiaIced {
         let mut image_data = Vec::new();
 
         for i in 0..(NES_HEIGHT * NES_WIDTH) {
-            image_data.extend_from_slice(&match i % 30 {
-                0..=9 => [0xff, 0, 0, 0xff],
-                1..=19 => [0, 0xff, 0, 0xff],
-                2..=29 => [0, 0, 0xff, 0xff],
-                _ => [0xff, 0xff, 0xff, 0xff],
+            image_data.extend_from_slice(match i % 30 {
+                0..=9 => &[0xff, 0, 0, 0xff],
+                10..=19 => &[0, 0xff, 0, 0xff],
+                20..=29 => &[0, 0, 0xff, 0xff],
+                _ => &[0xff, 0xff, 0xff, 0xff],
             });
         }
 
@@ -155,13 +154,10 @@ impl Application for NestadiaIced {
     fn subscription(&self) -> Subscription<Self::Message> {
         let keyboard_events =
             iced_native::subscription::events_with(|event, _status| match event {
-                iced_native::Event::Keyboard(event) => match event {
-                    keyboard::Event::KeyPressed { key_code, .. } => match key_code {
-                        KeyCode::F7 => Some(Self::Message::Step),
-                        KeyCode::F8 => Some(Self::Message::Disassemble),
-                        KeyCode::Space => Some(Self::Message::PauseUnpause),
-                        _ => None,
-                    },
+                iced_native::Event::Keyboard(keyboard::Event::KeyPressed { key_code, .. }) => match key_code {
+                    KeyCode::F7 => Some(Self::Message::Step),
+                    KeyCode::F8 => Some(Self::Message::Disassemble),
+                    KeyCode::Space => Some(Self::Message::PauseUnpause),
                     _ => None,
                 },
                 _ => None,

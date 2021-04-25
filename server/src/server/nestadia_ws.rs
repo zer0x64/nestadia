@@ -71,7 +71,6 @@ impl Actor for NestadiaWs {
             if Instant::now().duration_since(act.heartbeat) > CLIENT_TIMEOUT {
                 info!("Websocket Client heartbeat failed, disconnecting!");
                 ctx.stop();
-                return;
             } else {
                 ctx.ping(b"");
             }
@@ -148,9 +147,8 @@ fn start_emulation(
 
             // Loop until we get a frame
             let frame = loop {
-                match emulator.clock() {
-                    Some(frame) => break frame,
-                    None => {}
+                if let Some(frame) = emulator.clock() {
+                    break frame;
                 }
             }
             .to_vec();

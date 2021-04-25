@@ -14,8 +14,6 @@ use mapper_066::Mapper066;
 
 use std::convert::TryFrom as _;
 
-use log;
-
 const PRG_BANK_SIZE: usize = 16384;
 const CHR_BANK_SIZE: usize = 8192;
 
@@ -27,6 +25,7 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
+    #[allow(dead_code)] // FIXME
     header: INesHeader,
 
     prg_memory: Vec<u8>, // program ROM, used by CPU

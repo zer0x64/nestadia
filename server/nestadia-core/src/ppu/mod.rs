@@ -7,8 +7,10 @@ pub type PpuFrame = [u8; 256 * 240];
 
 pub struct Ppu {
     // memory
+    #[allow(dead_code)] // FIXME
     name_tables: [u8; 1024 * 2], // VRAM
     palette_table: [u8; 32],     // For color stuff
+    #[allow(dead_code)] // FIXME
     oam_data: [u8; 64 * 4],      // Object Attribute Memory, internal to PPU
 
     // registers
@@ -20,6 +22,12 @@ pub struct Ppu {
     cycle_count: u16,
     scanline: i16,
     frame: PpuFrame,
+}
+
+impl Default for Ppu {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Ppu {
@@ -72,6 +80,7 @@ impl dyn EmulatorContext<Ppu> {
                 // Write PPU Data
 
                 // Address to write data to
+                #[allow(unused_variables)] // FIXME
                 let write_addr = self.addr_reg.get();
 
                 // All PPU data writes increment the nametable address
@@ -136,8 +145,7 @@ impl dyn EmulatorContext<Ppu> {
                     0..=0x1FFF => todo!("read from chr_rom"),
                     0x2000..=0x2FFF => todo!("name tables mirroring for {}", read_addr),
                     0x3000..=0x3EFF => {
-                        // FIXME: use log framework instead of println!
-                        println!("address space 0x3000..0x3EFF is not expected to be used, requested = {} ", read_addr);
+                        log::warn!("address space 0x3000..0x3EFF is not expected to be used, but 0x{:#X} was requested", read_addr);
                         0
                     }
                     0x3F00..=0x3FFF => self.palette_table[usize::from(read_addr - 0x3F00)],
