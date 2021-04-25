@@ -13,7 +13,16 @@ mod gui;
 mod server;
 
 #[derive(Debug, StructOpt)]
-enum Opt {
+struct Opt {
+    #[structopt(default_value = "info", short, long)]
+    log_level: String,
+
+    #[structopt(subcommand)]
+    cmd: Command,
+}
+
+#[derive(Debug, StructOpt)]
+enum Command {
     #[cfg(feature = "gui")]
     Gui {
         #[structopt(parse(from_os_str), default_value = "./test_roms/Donkey Kong.nes")]
@@ -21,6 +30,8 @@ enum Opt {
     },
     #[cfg(feature = "server")]
     Server {
+        #[structopt(default_value = "127.0.0.1", long, short)]
+        bind_addr: String,
         #[structopt(default_value = "8080", long, short)]
         port: u16,
     },
@@ -28,13 +39,13 @@ enum Opt {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    flexi_logger::Logger::with_str("info").start().unwrap();
+    flexi_logger::Logger::with_str(opt.log_level).start().unwrap();
 
-    match opt {
+    match opt.cmd {
         #[cfg(feature = "gui")]
-        Opt::Gui { rom } => gui::gui_start(rom)?,
+        Command::Gui { rom } => gui::gui_start(rom)?,
         #[cfg(feature = "server")]
-        Opt::Server { port } => server::actix_main(port)?,
+        Command::Server { bind_addr, port } => server::actix_main(bind_addr, port)?,
     }
 
     Ok(())
