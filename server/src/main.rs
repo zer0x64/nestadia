@@ -24,11 +24,8 @@ enum Opt {
 }
 
 #[cfg(not(any(feature = "gui", feature = "server")))]
-fn main() {
-    panic!("You need to select at least one feature!");
-}
+compile_error!("You need to select at least one feature!");
 
-#[cfg(any(feature = "gui", feature = "server"))]
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
     flexi_logger::Logger::with_str("info").start().unwrap();
