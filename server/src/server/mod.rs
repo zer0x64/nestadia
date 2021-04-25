@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use futures::future::{ok, Either};
 use futures::task::Poll;
 
+use log::info;
+
 use rand::Rng;
 
 use actix::prelude::*;
@@ -131,12 +133,13 @@ impl Actor for NestadiaWs {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if let EmulationState::NotStarted(Some(rom)) = self.state {
-            // self.start_emulation(ctx, &rom);
+            // ROMs are hardcoded, so this shouldn't fail
+            self.start_emulation(ctx, &rom).unwrap()
         }
 
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.heartbeat) > CLIENT_TIMEOUT {
-                println!("Websocket Client heartbeat failed, disconnecting!");
+                info!("Websocket Client heartbeat failed, disconnecting!");
                 ctx.stop();
                 return;
             } else {
