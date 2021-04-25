@@ -97,7 +97,7 @@ async fn flag(_req: HttpRequest) -> impl Responder {
 }
 
 #[actix_web::main]
-pub async fn actix_main(port: u16) -> std::io::Result<()> {
+pub async fn actix_main(bind_addr : String, port: u16) -> std::io::Result<()> {
     let mut session_key = [0u8; 32];
     rand::thread_rng().fill(&mut session_key);
 
@@ -141,7 +141,7 @@ pub async fn actix_main(port: u16) -> std::io::Result<()> {
                     .disable_content_disposition(),
             )
     })
-    .bind(("127.0.0.1", port))?
+    .bind((bind_addr, port))?
     .run()
     .await
 }
