@@ -39,7 +39,6 @@ pub struct NestadiaWs {
 struct FrameStream {
     receiver: Receiver<Vec<u8>>,
     sender: Sender<Waker>,
-    last_poll: Instant,
 }
 
 #[derive(Message)]
@@ -55,13 +54,9 @@ impl Stream for FrameStream {
     type Item = Frame;
 
     fn poll_next(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         ctx: &mut futures::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // println!("poll {:?}", Instant::now() - self.last_poll);
-
-        self.last_poll = Instant::now();
-
         // Check whether a frame is ready
         match self.receiver.try_recv() {
             Ok(f) => Poll::Ready(Some(Frame(f))),
@@ -207,7 +202,6 @@ fn start_emulation(
     ctx.add_message_stream(FrameStream {
         receiver: frame_receiver,
         sender: waker_sender,
-        last_poll: Instant::now(),
     });
 
     Ok(input_sender)
