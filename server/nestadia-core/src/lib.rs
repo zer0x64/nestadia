@@ -21,7 +21,7 @@ pub enum ExecutionMode {
 }
 
 pub struct Emulator {
-    // cartridge is shared by CPU (prg) and PPU (chr)
+    // Cartridge is shared by CPU (prg) and PPU (chr)
     cartridge: Cartridge,
 
     // == CPU == //

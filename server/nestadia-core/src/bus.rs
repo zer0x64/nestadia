@@ -37,7 +37,7 @@ pub struct CpuBus<'a> {
     cartridge: &'a mut Cartridge,
     ppu: &'a mut Ppu,
     name_tables: &'a mut [u8; 1024 * 2],
-    last_data_on_ppu_bus: &'a u8,
+    last_data_on_ppu_bus: &'a mut u8,
 }
 
 impl<'a> CpuBus<'a> {
@@ -50,7 +50,7 @@ impl<'a> CpuBus<'a> {
         cartridge: &'a mut Cartridge,
         ppu: &'a mut Ppu,
         name_tables: &'a mut [u8; 1024 * 2],
-        last_data_on_ppu_bus: &'a u8,
+        last_data_on_ppu_bus: &'a mut u8,
     ) -> Self {
         Self {
             controller1,
@@ -117,14 +117,14 @@ impl CpuBus<'_> {
 pub struct PpuBus<'a> {
     cartridge: &'a mut Cartridge,
     name_tables: &'a mut [u8; 1024 * 2],
-    last_data_on_ppu_bus: &'a u8,
+    last_data_on_ppu_bus: &'a mut u8,
 }
 
 impl<'a> PpuBus<'a> {
     pub fn borrow(
         cartridge: &'a mut Cartridge,
         name_tables: &'a mut [u8; 1024 * 2],
-        last_data_on_ppu_bus: &'a u8,
+        last_data_on_ppu_bus: &'a mut u8,
     ) -> Self {
         Self {
             cartridge,
@@ -138,15 +138,27 @@ impl PpuBus<'_> {
     // Read returns the data fetched from the previous load operation and internal buffer is
     // updated. Load operation must be called twice in order to get the desired data.
 
+    /// Read CHR memory from cartridge
     pub fn read_chr_mem(&mut self, addr: u16) -> u8 {
         let data = *self.last_data_on_ppu_bus;
-        *self.last_data_on_ppu_bus = todo!("read from chr_rom");
+        *self.last_data_on_ppu_bus = self.cartridge.read_chr_mem(addr);
         data
     }
 
+    /// Write to CHR memory on cartridge (if writable)
+    pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
+        self.cartridge.write_chr_mem(addr, data);
+    }
+
+    /// `addr` should be mirrored before this call
     pub fn read_name_tables(&mut self, addr: u16) -> u8 {
         let data = *self.last_data_on_ppu_bus;
-        *self.last_data_on_ppu_bus = todo!("name tables mirroring for {}", addr);
+        *self.last_data_on_ppu_bus = self.name_tables[addr as usize];
         data
+    }
+
+    /// `addr` should be mirrored before this call
+    pub fn write_name_tables(&mut self, addr: u16, data: u8) {
+        self.name_tables[addr as usize] = data;
     }
 }

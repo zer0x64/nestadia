@@ -8,12 +8,12 @@ pub type PpuFrame = [u8; 256 * 240];
 pub struct Ppu {
     // internal memory
     palette_table: [u8; 32], // For color stuff
-    #[allow(dead_code)] // FIXME
-    oam_data: [u8; 64 * 4], // Object Attribute Memory, internal to PPU
+    oam_data: [u8; 64 * 4],  // Object Attribute Memory, internal to PPU
 
     // registers
     addr_reg: registers::VramAddr, // Address register pointing to name tables
     ctrl_reg: registers::ControllerReg,
+    oam_addr: u8,
 
     // emulation-specific internal stuff
     cycle_count: u16,
@@ -35,6 +35,7 @@ impl Ppu {
 
             addr_reg: registers::VramAddr::new(),
             ctrl_reg: registers::ControllerReg::default(),
+            oam_addr: 0,
 
             cycle_count: 0,
             scanline: 0,
@@ -57,10 +58,13 @@ impl Ppu {
                 // Status - not writable
             }
             3 => {
-                // TODO: OAM Address
+                // Write OAM Adress
+                self.oam_addr = data;
             }
             4 => {
-                // TODO: OAM Data
+                // Write OAM Data
+                self.oam_data[self.oam_addr as usize] = data;
+                self.oam_addr = self.oam_addr.wrapping_add(1);
             }
             5 => {
                 // TODO: Scroll
@@ -73,13 +77,30 @@ impl Ppu {
                 // Write PPU Data
 
                 // Address to write data to
-                #[allow(unused_variables)] // FIXME
                 let write_addr = self.addr_reg.get();
 
                 // All PPU data writes increment the nametable addr
                 self.increment_vram_addr();
 
-                // TODO: write to the right place
+                match write_addr {
+                    // Addresses mapped to PPU bus
+                    0..=0x1fff => bus.write_chr_mem(write_addr, data),
+                    0x2000..=0x2fff => bus.write_name_tables(write_addr, data), // TODO: mirroring
+
+                    // Unused addresses
+                    0x3000..=0x3eff => log::warn!("address space 0x3000..0x3EFF is not expected to be used, but it was attempted to write at 0x{:#X}", write_addr),
+
+                    // Palette table:
+                    // Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+                    // (usually, used for transparency)
+                    0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                        let add_mirror = addr - 0x10;
+                        self.palette_table[(add_mirror - 0x3f00) as usize] = data;
+                    }
+                    0x3f00..=0x3fff => self.palette_table[(addr - 0x3f00) as usize] = data,
+
+                    _ => unreachable!("unexpected write to mirrored space {}", write_addr),
+                }
             }
             _ => {
                 unreachable!("unexpected write to mirrored space {}", addr);
@@ -108,8 +129,8 @@ impl Ppu {
                 0
             }
             4 => {
-                // TODO: read OAM Data
-                0
+                // Read OAM Data
+                self.oam_data[self.oam_addr as usize]
             }
             5 => {
                 // Scroll - not readable
@@ -129,13 +150,13 @@ impl Ppu {
                 self.increment_vram_addr();
 
                 match read_addr {
-                    // addresses mapped to PPU bus
+                    // Addresses mapped to PPU bus
                     0..=0x1FFF => bus.read_chr_mem(read_addr),
-                    0x2000..=0x2FFF => bus.read_name_tables(read_addr),
+                    0x2000..=0x2FFF => bus.read_name_tables(read_addr), // TODO: mirroring
 
-                    // Unused addr space
+                    // Unused address space
                     0x3000..=0x3EFF => {
-                        log::warn!("addr space 0x3000..0x3EFF is not expected to be used, but 0x{:#X} was requested", read_addr);
+                        log::warn!("address space 0x3000..0x3EFF is not expected to be used, but 0x{:#X} was requested", read_addr);
                         0
                     }
 
@@ -152,6 +173,7 @@ impl Ppu {
     }
 
     /// Returns frame when it's ready
+    #[allow(unused_variables)] // FIXME
     pub fn clock(&mut self, bus: &mut PpuBus<'_>) -> Option<&PpuFrame> {
         self.cycle_count += 1;
 
@@ -177,4 +199,3 @@ impl Ppu {
         self.addr_reg.inc(inc_step);
     }
 }
-
