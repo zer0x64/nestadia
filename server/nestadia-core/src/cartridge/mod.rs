@@ -96,10 +96,10 @@ impl Cartridge {
     }
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
-        let addr = self.mapper.ppu_map_write(addr);
-
-        if let Some(addr) = addr {
+        if let Some(addr) = self.mapper.ppu_map_write(addr) {
             self.chr_memory[addr as usize] = data;
+        } else {
+            log::info!("attempted to write on CHR memory at {}, but this is not supported by this mapper", addr);
         }
     }
 
