@@ -4,17 +4,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::task::{
-    Poll,
-    Waker,
-};
+use futures::task::{Poll, Waker};
 use log::info;
 
 use actix::prelude::*;
 use actix_web_actors::ws;
+use flate2::{write::GzEncoder, Compression};
 
 use nestadia_core::{Emulator, ExecutionMode};
 use rand::Rng;
+use std::io::Write;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -22,8 +21,13 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub enum EmulationState {
-    Waiting { exec_mode: ExecutionMode }, // wait for a user-provided ROM
-    Ready { rom: &'static [u8], exec_mode: ExecutionMode }, // ready to start immediately
+    Waiting {
+        exec_mode: ExecutionMode,
+    }, // wait for a user-provided ROM
+    Ready {
+        rom: &'static [u8],
+        exec_mode: ExecutionMode,
+    }, // ready to start immediately
     Started(Sender<EmulatorInput>), // up and running
 }
 
@@ -64,7 +68,7 @@ impl Stream for FrameStream {
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.sender.send(ctx.waker().clone());
                 Poll::Pending
-            },
+            }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Poll::Ready(None),
         }
     }
@@ -138,7 +142,10 @@ impl Handler<Frame> for NestadiaWs {
             new_frame.extend(&[new_val; 256]);
         }
 
-        ctx.binary(new_frame)   // TODO: Send real frame
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&new_frame);
+
+        ctx.binary(encoder.finish().unwrap()) // TODO: Send real frame
     }
 }
 
@@ -204,4 +211,3 @@ fn start_emulation(
 
     Ok(input_sender)
 }
-
