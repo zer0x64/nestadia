@@ -1,5 +1,6 @@
 import React, { createRef, RefObject } from "react";
 import RGB_VALUE_TABLE from "./RGB_VALUES_TABLE";
+import * as gzip from 'gzip-js';
 
 class Emulator extends React.Component {
     canvasRef: RefObject<HTMLCanvasElement>;
@@ -20,7 +21,9 @@ class Emulator extends React.Component {
         ws.binaryType = 'arraybuffer'
 
         ws.addEventListener("message", (event) => {
-            let frame: Uint8Array = new Uint8Array(event.data);
+            let frameEncoded: Uint8Array = new Uint8Array(event.data);
+            let frame = gzip.unzip(frameEncoded);
+
             let ctx = this.canvasRef.current?.getContext("2d");
 
             if (ctx) {
