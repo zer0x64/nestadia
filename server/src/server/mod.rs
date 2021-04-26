@@ -116,6 +116,7 @@ pub async fn actix_main(bind_addr : String, port: u16) -> std::io::Result<()> {
                 web::scope("/api")
                     .route("/emulator/custom", web::get().to(custom_emulator))
                     .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
+                    .route("/list", web::get().to(rom_list))
                     .route("/login", web::post().to(login))
                     .route("/logout", web::get().to(logout)),
             )
