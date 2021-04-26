@@ -20,6 +20,8 @@ use actix_web_actors::ws;
 
 use nestadia_core::ExecutionMode;
 
+const ROM_LIST: [&str; 3] = ["rom1", "rom2", "rom3"];
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Credentials {
     password: String,
@@ -29,9 +31,9 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     let rom_name = req.match_info().get("rom_name").unwrap();
 
     let rom = match rom_name {
-        "rom1" => include_bytes!("../../test_roms/1.Branch_Basics.nes"),
-        "rom2" => include_bytes!("../../test_roms/2.Backward_Branch.nes"),
-        "rom3" => include_bytes!("../../test_roms/3.Forward_Branch.nes"),
+        _ if rom_name == ROM_LIST[0] => include_bytes!("../../test_roms/1.Branch_Basics.nes"),
+        _ if rom_name == ROM_LIST[1] => include_bytes!("../../test_roms/2.Backward_Branch.nes"),
+        _ if rom_name == ROM_LIST[2] => include_bytes!("../../test_roms/3.Forward_Branch.nes"),
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
@@ -51,6 +53,11 @@ async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Respond
 
     ws::start(websocket, &req, stream)
 }
+
+async fn rom_list(_req: HttpRequest) -> impl Responder {
+    HttpResponse::Ok().json(ROM_LIST)
+}
+
 
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
