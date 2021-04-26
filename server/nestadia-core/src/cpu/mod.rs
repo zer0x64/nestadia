@@ -6,9 +6,9 @@ use std::convert::TryFrom as _;
 
 use bitflags::bitflags;
 
-use crate::ExecutionMode;
-use crate::bus::CpuBus;
 use self::opcode::Opcode;
+use crate::bus::CpuBus;
+use crate::ExecutionMode;
 
 const STACK_BASE: u16 = 0x0100;
 const PC_START: u16 = 0xFFFC;
@@ -92,7 +92,8 @@ impl Cpu {
 
             self.status_register.set(StatusRegister::I, true);
 
-            self.pc = u16::from(bus.read(IRQ_HANDLER)) | (u16::from(bus.read(IRQ_HANDLER + 1)) << 8);
+            self.pc =
+                u16::from(bus.read(IRQ_HANDLER)) | (u16::from(bus.read(IRQ_HANDLER + 1)) << 8);
 
             self.cycles = 7;
         }
@@ -111,7 +112,8 @@ impl Cpu {
 
         self.status_register.set(StatusRegister::I, true);
 
-        self.pc = u16::from(bus.read(NMI_HANDLER)) | (u16::from(bus.read(NMI_HANDLER.wrapping_add(1))) << 8);
+        self.pc = u16::from(bus.read(NMI_HANDLER))
+            | (u16::from(bus.read(NMI_HANDLER.wrapping_add(1))) << 8);
 
         self.cycles = 7;
     }
@@ -121,10 +123,7 @@ impl Cpu {
             let opcode = match Opcode::try_from(bus.read(self.pc)) {
                 Ok(o) => o,
                 Err(_) => {
-                    log::warn!(
-                        "Unknown opcode {}, treating as a NOP...",
-                        bus.read(self.pc)
-                    );
+                    log::warn!("Unknown opcode {}, treating as a NOP...", bus.read(self.pc));
                     Opcode::Nop
                 }
             };
@@ -1007,20 +1006,17 @@ impl Cpu {
 
     fn am_izx(&mut self, bus: &mut CpuBus<'_>) -> u16 {
         self.pc = self.pc.wrapping_add(1);
-        let ptr = u16::from(
-            bus.read(self.pc.wrapping_sub(1)).wrapping_add(self.x)
-        ) & 0x00ff;
+        let ptr = u16::from(bus.read(self.pc.wrapping_sub(1)).wrapping_add(self.x)) & 0x00ff;
 
-        (u16::from(bus.read(ptr)))
-            | (u16::from(bus.read(ptr.wrapping_add(1) & 0x00ff)) << 8)
+        (u16::from(bus.read(ptr))) | (u16::from(bus.read(ptr.wrapping_add(1) & 0x00ff)) << 8)
     }
 
     fn am_izy(&mut self, bus: &mut CpuBus<'_>) -> (u16, bool) {
         self.pc = self.pc.wrapping_add(1);
         let ptr = (u16::from(bus.read(self.pc.wrapping_sub(1)))) & 0x00ff;
 
-        let address_no_offset = (u16::from(bus.read(ptr)))
-            | (u16::from(bus.read(ptr.wrapping_add(1))) << 8);
+        let address_no_offset =
+            (u16::from(bus.read(ptr))) | (u16::from(bus.read(ptr.wrapping_add(1))) << 8);
 
         let address_with_offset = address_no_offset.wrapping_add(u16::from(self.y));
 
@@ -1081,7 +1077,8 @@ impl Cpu {
     }
 
     fn inst_asl(&mut self, op: u8) -> u8 {
-        self.status_register.set(StatusRegister::C, op & 0x80 == 0x80);
+        self.status_register
+            .set(StatusRegister::C, op & 0x80 == 0x80);
         let result = op << 1;
 
         let z = self.a == 0;
@@ -1115,8 +1112,10 @@ impl Cpu {
         let result = self.a & op;
 
         self.status_register.set(StatusRegister::Z, result == 0);
-        self.status_register.set(StatusRegister::V, result & (1 << 6) > 0);
-        self.status_register.set(StatusRegister::N, result & (1 << 7) > 0);
+        self.status_register
+            .set(StatusRegister::V, result & (1 << 6) > 0);
+        self.status_register
+            .set(StatusRegister::N, result & (1 << 7) > 0);
     }
 
     fn inst_bmi(&mut self, offset: u16) {
@@ -1386,7 +1385,8 @@ impl Cpu {
     fn inst_rol(&mut self, op: u8) -> u8 {
         let carry = self.status_register.contains(StatusRegister::C);
 
-        self.status_register.set(StatusRegister::C, op & (1 << 7) > 0);
+        self.status_register
+            .set(StatusRegister::C, op & (1 << 7) > 0);
 
         let mut result = op << 1;
 
@@ -1395,7 +1395,8 @@ impl Cpu {
         }
 
         self.status_register.set(StatusRegister::Z, result == 0);
-        self.status_register.set(StatusRegister::Z, result & (1 << 7) > 0);
+        self.status_register
+            .set(StatusRegister::Z, result & (1 << 7) > 0);
 
         result
     }

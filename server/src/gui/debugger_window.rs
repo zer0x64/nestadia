@@ -154,12 +154,14 @@ impl Application for NestadiaIced {
     fn subscription(&self) -> Subscription<Self::Message> {
         let keyboard_events =
             iced_native::subscription::events_with(|event, _status| match event {
-                iced_native::Event::Keyboard(keyboard::Event::KeyPressed { key_code, .. }) => match key_code {
-                    KeyCode::F7 => Some(Self::Message::Step),
-                    KeyCode::F8 => Some(Self::Message::Disassemble),
-                    KeyCode::Space => Some(Self::Message::PauseUnpause),
-                    _ => None,
-                },
+                iced_native::Event::Keyboard(keyboard::Event::KeyPressed { key_code, .. }) => {
+                    match key_code {
+                        KeyCode::F7 => Some(Self::Message::Step),
+                        KeyCode::F8 => Some(Self::Message::Disassemble),
+                        KeyCode::Space => Some(Self::Message::PauseUnpause),
+                        _ => None,
+                    }
+                }
                 _ => None,
             });
 

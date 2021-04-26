@@ -39,7 +39,9 @@ enum Command {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    flexi_logger::Logger::with_str(opt.log_level).start().unwrap();
+    flexi_logger::Logger::with_str(opt.log_level)
+        .start()
+        .unwrap();
 
     match opt.cmd {
         #[cfg(feature = "gui")]

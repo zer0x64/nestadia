@@ -4,13 +4,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::task::Poll;
+use futures::task::{Poll, Waker};
 use log::info;
 
 use actix::prelude::*;
 use actix_web_actors::ws;
+use flate2::{write::GzEncoder, Compression};
 
 use nestadia_core::{Emulator, ExecutionMode};
+use rand::Rng;
+use std::io::Write;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -18,8 +21,13 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub enum EmulationState {
-    Waiting { exec_mode: ExecutionMode }, // wait for a user-provided ROM
-    Ready { rom: &'static [u8], exec_mode: ExecutionMode }, // ready to start immediately
+    Waiting {
+        exec_mode: ExecutionMode,
+    }, // wait for a user-provided ROM
+    Ready {
+        rom: &'static [u8],
+        exec_mode: ExecutionMode,
+    }, // ready to start immediately
     Started(Sender<EmulatorInput>), // up and running
 }
 
@@ -30,6 +38,7 @@ pub struct NestadiaWs {
 
 struct FrameStream {
     receiver: Receiver<Vec<u8>>,
+    sender: Sender<Waker>,
 }
 
 #[derive(Message)]
@@ -46,12 +55,15 @@ impl Stream for FrameStream {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _cx: &mut futures::task::Context<'_>,
+        ctx: &mut futures::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         // Check whether a frame is ready
         match self.receiver.try_recv() {
             Ok(f) => Poll::Ready(Some(Frame(f))),
-            Err(std::sync::mpsc::TryRecvError::Empty) => Poll::Pending,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                let _ = self.sender.send(ctx.waker().clone());
+                Poll::Pending
+            }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Poll::Ready(None),
         }
     }
@@ -117,8 +129,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
 impl Handler<Frame> for NestadiaWs {
     type Result = ();
 
-    fn handle(&mut self, msg: Frame, ctx: &mut Self::Context) {
-        ctx.binary(msg.0)
+    fn handle(&mut self, _msg: Frame, ctx: &mut Self::Context) {
+        let mut rng = rand::thread_rng();
+        let mut new_frame: Vec<u8> = Vec::new();
+        for _ in 0..240 {
+            let new_val: u8 = rng.gen_range(0..64);
+            new_frame.extend(&[new_val; 256]);
+        }
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        match encoder.write_all(&new_frame) {
+            Ok(_) => ctx.binary(encoder.finish().unwrap()), // TODO: Send real frame
+            Err(_) => {} //Simply skip the frame if there's an error during compression
+        }
     }
 }
 
@@ -131,10 +154,12 @@ fn start_emulation(
 
     let (input_sender, input_receiver) = channel();
     let (frame_sender, frame_receiver) = channel();
+    let (waker_sender, waker_receiver) = channel();
 
     // This thread runs the actual emulator and sync the framerate
     std::thread::spawn(move || {
         let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+        let mut frame_waker: Option<Waker> = None;
 
         loop {
             // Check if we received  an input or if we close the thread
@@ -162,14 +187,22 @@ fn start_emulation(
                 Err(_) => break, // Stop the thread if there is an error to avoid infinite loop
             };
 
+            // Wake the FrameStream task
+            if let Ok(waker) = waker_receiver.try_recv() {
+                frame_waker = Some(waker);
+            };
+            if let Some(waker) = frame_waker.take() {
+                waker.wake();
+            }
+
             next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
         }
     });
 
     ctx.add_message_stream(FrameStream {
         receiver: frame_receiver,
+        sender: waker_sender,
     });
 
     Ok(input_sender)
 }
-

@@ -9,8 +9,8 @@ pub use cpu::Cpu;
 pub use ppu::Ppu;
 
 use crate::cartridge::Cartridge;
-use crate::ppu::PpuFrame;
 use crate::cartridge::RomParserError;
+use crate::ppu::PpuFrame;
 
 pub const RAM_SIZE: u16 = 0x0800;
 
@@ -105,4 +105,3 @@ impl Emulator {
         &self.cpu
     }
 }
-
