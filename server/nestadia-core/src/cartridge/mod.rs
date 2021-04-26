@@ -99,7 +99,10 @@ impl Cartridge {
         if let Some(addr) = self.mapper.ppu_map_write(addr) {
             self.chr_memory[addr as usize] = data;
         } else {
-            log::info!("attempted to write on CHR memory at {}, but this is not supported by this mapper", addr);
+            log::info!(
+                "attempted to write on CHR memory at {}, but this is not supported by this mapper",
+                addr
+            );
         }
     }
 

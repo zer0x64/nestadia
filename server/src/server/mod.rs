@@ -36,7 +36,10 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     };
 
     let websocket = NestadiaWs {
-        state: EmulationState::Ready { rom, exec_mode: ExecutionMode::Ring3 },
+        state: EmulationState::Ready {
+            rom,
+            exec_mode: ExecutionMode::Ring3,
+        },
         heartbeat: Instant::now(),
     };
 
@@ -45,7 +48,9 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
 async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
-        state: EmulationState::Waiting { exec_mode: ExecutionMode::Ring3 },
+        state: EmulationState::Waiting {
+            exec_mode: ExecutionMode::Ring3,
+        },
         heartbeat: Instant::now(),
     };
 
@@ -97,7 +102,7 @@ async fn flag(_req: HttpRequest) -> impl Responder {
 }
 
 #[actix_web::main]
-pub async fn actix_main(bind_addr : String, port: u16) -> std::io::Result<()> {
+pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
     let mut session_key = [0u8; 32];
     rand::thread_rng().fill(&mut session_key);
 

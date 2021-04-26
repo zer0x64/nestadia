@@ -1,6 +1,6 @@
+use crate::cartridge::Cartridge;
 use crate::Ppu;
 use crate::RAM_SIZE;
-use crate::cartridge::Cartridge;
 
 macro_rules! borrow_cpu_bus {
     ($owner:ident) => {{
@@ -15,7 +15,7 @@ macro_rules! borrow_cpu_bus {
             &mut $owner.name_tables,
             &mut $owner.last_data_on_ppu_bus,
         )
-    }}
+    }};
 }
 
 macro_rules! borrow_ppu_bus {
@@ -25,7 +25,7 @@ macro_rules! borrow_ppu_bus {
             &mut $owner.name_tables,
             &mut $owner.last_data_on_ppu_bus,
         )
-    }}
+    }};
 }
 
 pub struct CpuBus<'a> {

@@ -127,7 +127,11 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
             // Maps 6 bit colors to RGB
             let frame: Vec<u8> = frame
                 .iter()
-                .flat_map(|c| RGB_VALUE_TABLE.get(*c as usize).unwrap_or(&[0x00, 0x00, 0x00]))
+                .flat_map(|c| {
+                    RGB_VALUE_TABLE
+                        .get(*c as usize)
+                        .unwrap_or(&[0x00, 0x00, 0x00])
+                })
                 .copied()
                 .collect();
 

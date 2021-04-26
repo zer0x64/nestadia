@@ -66,7 +66,7 @@ impl Stream for FrameStream {
         match self.receiver.try_recv() {
             Ok(f) => Poll::Ready(Some(Frame(f))),
             Err(std::sync::mpsc::TryRecvError::Empty) => {
-                self.sender.send(ctx.waker().clone());
+                let _ = self.sender.send(ctx.waker().clone());
                 Poll::Pending
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Poll::Ready(None),
@@ -134,7 +134,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
 impl Handler<Frame> for NestadiaWs {
     type Result = ();
 
-    fn handle(&mut self, msg: Frame, ctx: &mut Self::Context) {
+    fn handle(&mut self, _msg: Frame, ctx: &mut Self::Context) {
         let mut rng = rand::thread_rng();
         let mut new_frame: Vec<u8> = Vec::new();
         for _ in 0..240 {
@@ -143,9 +143,10 @@ impl Handler<Frame> for NestadiaWs {
         }
 
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&new_frame);
-
-        ctx.binary(encoder.finish().unwrap()) // TODO: Send real frame
+        match encoder.write_all(&new_frame) {
+            Ok(_) => ctx.binary(encoder.finish().unwrap()), // TODO: Send real frame
+            Err(_) => {} //Simply skip the frame if there's an error during compression
+        }
     }
 }
 
