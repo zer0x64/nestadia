@@ -12,7 +12,14 @@ use self::mapper_002::Mapper002;
 use self::mapper_003::Mapper003;
 use self::mapper_066::Mapper066;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
+pub enum Mirroring {
+    Horizontal,
+    Vertical,
+    FourScreen,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum RomParserError {
     TooShort,
     InvalidMagicBytes,
@@ -35,13 +42,14 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
+    header: INesHeader,
     prg_memory: Vec<u8>, // program ROM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
     mapper: Box<dyn Mapper>,
 }
 
 impl Cartridge {
-    pub fn new(rom: &[u8]) -> Result<Self, RomParserError> {
+    pub fn load(rom: &[u8]) -> Result<Self, RomParserError> {
         const PRG_BANK_SIZE: usize = 16384;
         const CHR_BANK_SIZE: usize = 8192;
 
@@ -75,10 +83,21 @@ impl Cartridge {
         chr_memory.copy_from_slice(&rom[start..end]);
 
         Ok(Cartridge {
+            header,
             prg_memory,
             chr_memory,
             mapper,
         })
+    }
+
+    pub fn mirroring(&self) -> Mirroring {
+        if self.header.flags6.contains(Flags6::FOUR_SCREEN) {
+            Mirroring::FourScreen
+        } else if self.header.flags6.contains(Flags6::MIRRORING) {
+            Mirroring::Vertical
+        } else {
+            Mirroring::Horizontal
+        }
     }
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {

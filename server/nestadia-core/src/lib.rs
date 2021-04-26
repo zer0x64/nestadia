@@ -21,7 +21,7 @@ pub enum ExecutionMode {
 }
 
 pub struct Emulator {
-    // Cartridge is shared by CPU (prg) and PPU (chr)
+    // Cartridge is shared by CPU (PRG) and PPU (CHR)
     cartridge: Cartridge,
 
     // == CPU == //
@@ -44,7 +44,7 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(rom: &[u8], execution_mode: ExecutionMode) -> Result<Self, RomParserError> {
         let mut emulator = Self {
-            cartridge: Cartridge::new(rom)?,
+            cartridge: Cartridge::load(rom)?,
 
             cpu: Cpu::new(execution_mode),
             controller1: 0,
