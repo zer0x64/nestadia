@@ -11,6 +11,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 
 use nestadia_core::{Emulator, ExecutionMode};
+use rand::Rng;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -118,7 +119,14 @@ impl Handler<Frame> for NestadiaWs {
     type Result = ();
 
     fn handle(&mut self, msg: Frame, ctx: &mut Self::Context) {
-        ctx.binary(msg.0)
+        let mut rng = rand::thread_rng();
+        let mut new_frame: Vec<u8> = Vec::new();
+        for _ in 0..240 {
+            let new_val: u8 = rng.gen_range(0..64);
+            new_frame.extend(&[new_val; 256]);
+        }
+
+        ctx.binary(new_frame)
     }
 }
 
