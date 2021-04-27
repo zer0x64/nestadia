@@ -6,6 +6,7 @@ import Emulator from './emulator/emulator';
 import EmulatorMode from './emulator/emulatorMode';
 import LoginPage from './login/login';
 import MainPage from './mainpage/mainpage';
+import logo from "./logo-nestadia-background.png";
 
 class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mode: EmulatorMode}> {
   constructor(props: any) {
@@ -48,6 +49,7 @@ class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mod
     return (
       <div className="App">
         <header className="App-header">
+          <img src={logo} alt="logo"/>
           {content}
         </header>
       </div>
