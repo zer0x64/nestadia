@@ -206,8 +206,8 @@ impl Ppu {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::Cartridge;
     use crate::cartridge::Mirroring;
+    use crate::Cartridge;
 
     const ROM_HORIZONTAL: &'static [u8] = include_bytes!("../../../test_roms/1.Branch_Basics.nes");
     const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../test_roms/Alter_Ego.nes");
@@ -240,7 +240,6 @@ pub mod test {
     fn name_tables_writes() {
         let mut emu = mock_emu_horizontal();
         let mut bus = borrow_ppu_bus!(emu);
-
 
         emu.ppu.write(&mut bus, 0x2006, 0x23);
         emu.ppu.write(&mut bus, 0x2006, 0x05);
@@ -405,7 +404,9 @@ pub mod test {
     #[test]
     fn read_status_resets_vblank() {
         let mut emu = mock_emu_horizontal();
-        emu.ppu.status_reg.set(registers::StatusReg::VBLANK_STARTED, true);
+        emu.ppu
+            .status_reg
+            .set(registers::StatusReg::VBLANK_STARTED, true);
         let mut bus = borrow_ppu_bus!(emu);
 
         assert_eq!(emu.ppu.read(&mut bus, 0x2002) >> 7, 1);

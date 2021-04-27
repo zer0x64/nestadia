@@ -1548,8 +1548,8 @@ impl CpuBus<'_> {
             0..=0x1FFF => self.write_ram(addr, data),
             0x2000..=0x3FFF => self.write_ppu_register(addr, data),
             0x4000..=0x4015 => (), // TODO: APU and Audio
-            0x4016 => self.controller1_take_snapshot(),
-            0x4017 => self.controller2_take_snapshot(),
+            0x4016 => self.controller1_write(data),
+            0x4017 => self.controller2_write(data),
             0x4018..=0x401F => (), // TODO: APU and Audio
             0x4020..=0xFFFF => self.write_prg_mem(addr, data),
         };
