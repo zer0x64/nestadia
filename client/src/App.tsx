@@ -1,14 +1,58 @@
+import React from 'react';
 import './App.css';
-import Emulator from './emulation/Emulator';
+import AppState from './appstate';
+import DevDashboard from './devdashboard/devdashboard';
+import Emulator from './emulator/emulator';
+import EmulatorMode from './emulator/emulatorMode';
+import LoginPage from './login/login';
+import MainPage from './mainpage/mainpage';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <Emulator></Emulator>
-      </header>
-    </div>
-  );
+class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mode: EmulatorMode}> {
+  constructor(props: any) {
+    super(props);
+
+    this.state = {state: AppState.MainPage, isLoggedIn: false, mode: EmulatorMode.Normal}
+  }
+
+  setAppState(state: AppState) {
+    this.setState({'state': state})
+  }
+
+  setEmulatorMode(mode: EmulatorMode) {
+    this.setState({mode: mode})
+  }
+
+  setLoggedIn(isLoggedIn: boolean) {
+    this.setState({isLoggedIn: isLoggedIn})
+  }
+
+  componentDidMount() {
+    
+  }
+
+  render() {
+    let content;
+    if(this.state.state == AppState.MainPage) {
+      content = (<MainPage setAppState={this.setAppState.bind(this)} setEmulatorMode={this.setEmulatorMode.bind(this)}></MainPage>)
+    }
+    else if(this.state.state == AppState.LoginPage) {
+      content = (<LoginPage setAppState={this.setAppState.bind(this)} setLoggedIn={this.setLoggedIn.bind(this)}></LoginPage>)
+    }
+    else if(this.state.state == AppState.DevDashboard) {
+      content = (<DevDashboard setAppState={this.setAppState.bind(this)} setEmulatorMode={this.setEmulatorMode.bind(this)}></DevDashboard>)
+    }
+    else {
+      content = (<Emulator setAppState={this.setAppState.bind(this)} mode={this.state.mode}></Emulator>)
+    }
+
+    return (
+      <div className="App">
+        <header className="App-header">
+          {content}
+        </header>
+      </div>
+    );
+  }
 }
 
 export default App;

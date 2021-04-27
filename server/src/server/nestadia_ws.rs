@@ -114,9 +114,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                             Err(_) => (),
                         }
                     } // Received ROM
-                    EmulationState::Started(input_sender) => input_sender
-                        .send(EmulatorInput::Controller1(bin[0]))
-                        .unwrap(), // TODO: plz handle result
+                    EmulationState::Started(input_sender) => {
+                        if bin.len() > 0 {
+                            let _ = input_sender.send(EmulatorInput::Controller1(bin[0]));
+                        };
+                    }
                     EmulationState::Ready { .. } => (), // Ignore
                 }
             }

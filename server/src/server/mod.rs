@@ -63,7 +63,6 @@ async fn rom_list(_req: HttpRequest) -> impl Responder {
     HttpResponse::Ok().json(ROM_LIST)
 }
 
-
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
         state: EmulationState::Ready {
@@ -108,6 +107,10 @@ async fn flag(_req: HttpRequest) -> impl Responder {
     flag
 }
 
+async fn debug_build(_req: HttpRequest) -> impl Responder {
+    actix_files::NamedFile::open("./nestadia_debug")
+}
+
 #[actix_web::main]
 pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
     let mut session_key = [0u8; 32];
@@ -118,15 +121,7 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
             .wrap(actix_web::middleware::Logger::default())
             .wrap(CookieSession::signed(&session_key))
             .service(
-                web::scope("/api")
-                    .route("/emulator/custom", web::get().to(custom_emulator))
-                    .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
-                    .route("/list", web::get().to(rom_list))
-                    .route("/login", web::post().to(login))
-                    .route("/logout", web::get().to(logout)),
-            )
-            .service(
-                // We scope /api/debug/ differently to enforce access control
+                // We scope /api/dev/ differently to enforce access control
                 web::scope("/api/dev")
                     .wrap_fn(|req, srv| {
                         // Extract the session information
@@ -146,7 +141,16 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
                         }
                     })
                     .route("/emulator", web::get().to(dev_emulator))
-                    .route("/flag", web::get().to(flag)),
+                    .route("/flag", web::get().to(flag))
+                    .route("/debug_build", web::get().to(debug_build)),
+            )
+            .service(
+                web::scope("/api")
+                    .route("/emulator/custom", web::get().to(custom_emulator))
+                    .route("/emulator/{rom_name}", web::get().to(emulator_start_param))
+                    .route("/list", web::get().to(rom_list))
+                    .route("/login", web::post().to(login))
+                    .route("/logout", web::get().to(logout)),
             )
             .service(
                 actix_files::Files::new("/", "client_build")
