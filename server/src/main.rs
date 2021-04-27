@@ -25,7 +25,7 @@ struct Opt {
 enum Command {
     #[cfg(feature = "gui")]
     Gui {
-        #[structopt(parse(from_os_str), default_value = "./test_roms/Donkey Kong.nes")]
+        #[structopt(parse(from_os_str), default_value = "./test_roms/flappybird.nes")]
         rom: PathBuf,
     },
     #[cfg(feature = "server")]

@@ -21,7 +21,7 @@ bitflags! {
         const MIRRORING = (1 << 0);
         const PRG_RAM = (1 << 1);
         const TRAINER = (1 << 2);
-        const IGNORE_MIRRORING_CONTROL = (1 << 3);
+        const FOUR_SCREEN = (1 << 3);
     }
 }
 

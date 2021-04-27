@@ -1546,24 +1546,24 @@ impl CpuBus<'_> {
     fn write(&mut self, addr: u16, data: u8) {
         match addr {
             0..=0x1FFF => self.write_ram(addr, data),
-            0x2000..=0x3fff => self.write_ppu_register(addr, data),
+            0x2000..=0x3FFF => self.write_ppu_register(addr, data),
             0x4000..=0x4015 => (), // TODO: APU and Audio
             0x4016 => self.controller1_take_snapshot(),
             0x4017 => self.controller2_take_snapshot(),
-            0x4018..=0x401f => (), // TODO: APU and Audio
-            0x4020..=0xffff => self.write_prg_mem(addr, data),
+            0x4018..=0x401F => (), // TODO: APU and Audio
+            0x4020..=0xFFFF => self.write_prg_mem(addr, data),
         };
     }
 
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0..=0x1FFF => self.read_ram(addr),
-            0x2000..=0x3fff => self.read_ppu_register(addr),
+            0x2000..=0x3FFF => self.read_ppu_register(addr),
             0x4000..=0x4015 => 0, // TODO: APU and Audio
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),
-            0x4018..=0x401f => 0, // TODO: APU and Audio
-            0x4020..=0xffff => self.read_prg_mem(addr),
+            0x4018..=0x401F => 0, // TODO: APU and Audio
+            0x4020..=0xFFFF => self.read_prg_mem(addr),
         }
     }
 }

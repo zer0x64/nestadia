@@ -1,4 +1,5 @@
 use crate::cartridge::Cartridge;
+use crate::cartridge::Mirroring;
 use crate::Ppu;
 use crate::RAM_SIZE;
 
@@ -77,12 +78,12 @@ impl CpuBus<'_> {
 
     pub fn write_ppu_register(&mut self, addr: u16, data: u8) {
         let mut ppu_bus = borrow_ppu_bus!(self);
-        self.ppu.write_ppu_register(&mut ppu_bus, addr, data);
+        self.ppu.write(&mut ppu_bus, addr, data);
     }
 
     pub fn read_ppu_register(&mut self, addr: u16) -> u8 {
         let mut ppu_bus = borrow_ppu_bus!(self);
-        self.ppu.read_ppu_register(&mut ppu_bus, addr)
+        self.ppu.read(&mut ppu_bus, addr)
     }
 
     pub fn controller1_take_snapshot(&mut self) {
@@ -150,15 +151,35 @@ impl PpuBus<'_> {
         self.cartridge.write_chr_mem(addr, data);
     }
 
-    /// `addr` should be mirrored before this call
     pub fn read_name_tables(&mut self, addr: u16) -> u8 {
         let data = *self.last_data_on_ppu_bus;
-        *self.last_data_on_ppu_bus = self.name_tables[addr as usize];
+        *self.last_data_on_ppu_bus = self.name_tables[self.mirror_name_tables_addr(addr) as usize];
         data
     }
 
-    /// `addr` should be mirrored before this call
     pub fn write_name_tables(&mut self, addr: u16, data: u8) {
-        self.name_tables[addr as usize] = data;
+        self.name_tables[self.mirror_name_tables_addr(addr) as usize] = data;
+    }
+
+    // http://wiki.nesdev.com/w/index.php/Mirroring#Nametable_Mirroring
+    fn mirror_name_tables_addr(&self, addr: u16) -> u16 {
+        let mirrored = addr & 0x2FFF; // mirror to $2000-$2FFF range
+        let idx = mirrored - 0x2000; // project to array indexing range
+        match self.cartridge.mirroring() {
+            Mirroring::Horizontal => match idx {
+                0..=1023 => idx,
+                1024..=2047 => idx - 1024,
+                2048..=3071 => idx - 1024,
+                3072..=4095 => idx - 2048,
+                _ => unreachable!(),
+            },
+            Mirroring::Vertical => match idx {
+                0..=2047 => idx,
+                2048..=3071 => idx - 2048,
+                3072..=4095 => idx - 2048,
+                _ => unreachable!(),
+            },
+            Mirroring::FourScreen => idx, // FIXME/TODO: this will probably cause an index out of range explosion with current code
+        }
     }
 }

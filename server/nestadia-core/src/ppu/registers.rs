@@ -1,21 +1,26 @@
 use bitflags::bitflags;
 
+// == VRAM address register == //
+
 /// VRAM address (0x0000..0x3FFF)
+/// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUADDR
 pub struct VramAddr {
     value: u16,
-    write_to_lower: bool,
+    latch: bool,
+}
+
+impl Default for VramAddr {
+    fn default() -> Self {
+        Self {
+            value: 0,
+            latch: false,
+        }
+    }
 }
 
 impl VramAddr {
-    pub fn new() -> Self {
-        Self {
-            value: 0,
-            write_to_lower: false,
-        }
-    }
-
     pub fn load(&mut self, data: u8) {
-        if self.write_to_lower {
+        if self.latch {
             // reset and update lower
             self.value &= 0xFF00;
             self.value |= u16::from(data);
@@ -24,7 +29,7 @@ impl VramAddr {
             self.value &= 0x00FF;
             self.value |= u16::from(data) << 8;
         }
-        self.write_to_lower = !self.write_to_lower;
+        self.latch = !self.latch;
         self.mirror();
     }
 
@@ -37,14 +42,21 @@ impl VramAddr {
         self.mirror();
     }
 
+    pub fn reset_latch(&mut self) {
+        self.latch = false;
+    }
+
     fn mirror(&mut self) {
         const MIRRORING_HIGHER_BOUND: u16 = 0x3FFF;
         self.value &= MIRRORING_HIGHER_BOUND;
     }
 }
 
+// == control register == //
+
 bitflags! {
-    pub struct ControllerReg: u8 {
+    /// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUCTRL
+    pub struct ControlReg: u8 {
         /// N: Base nametable address lower bit
         const NAMETABLE_ADDR_LO = 0b00000001;
         /// N: Base nametable address higher bit
@@ -77,13 +89,17 @@ bitflags! {
     }
 }
 
-impl Default for ControllerReg {
+impl Default for ControlReg {
     fn default() -> Self {
         Self::empty()
     }
 }
 
-impl ControllerReg {
+impl ControlReg {
+    pub fn write(&mut self, data: u8) {
+        self.bits = data;
+    }
+
     pub fn vram_addr_increment(&self) -> u8 {
         if self.contains(Self::VRAM_ADDR_INCREMENT) {
             // vertical mode: increment is 32 so it skips one whole nametable row.
@@ -95,6 +111,130 @@ impl ControllerReg {
     }
 }
 
+// == scroll register == //
+
+/// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUSCROLL
+pub struct ScrollReg {
+    scroll_x: u8,
+    scroll_y: u8,
+    latch: bool,
+}
+
+impl Default for ScrollReg {
+    fn default() -> Self {
+        ScrollReg {
+            scroll_x: 0,
+            scroll_y: 0,
+            latch: false,
+        }
+    }
+}
+
+impl ScrollReg {
+    pub fn write(&mut self, data: u8) {
+        if self.latch {
+            self.scroll_y = data;
+        } else {
+            self.scroll_x = data;
+        }
+        self.latch = !self.latch;
+    }
+
+    pub fn reset_latch(&mut self) {
+        self.latch = false;
+    }
+
+    pub fn scroll_x(&self) -> u8 {
+        self.scroll_x
+    }
+
+    pub fn scroll_y(&self) -> u8 {
+        self.scroll_y
+    }
+}
+
+// == status register == //
+
+bitflags! {
+    /// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUSTATUS
+    pub struct StatusReg: u8 {
+        /// O: Sprite overflow. The intent was for this flag to be set
+        /// whenever more than eight sprites appear on a scanline, but a
+        /// hardware bug causes the actual behavior to be more complicated
+        /// and generate false positives as well as false negatives; see
+        /// PPU sprite evaluation. This flag is set during sprite
+        /// evaluation and cleared at dot 1 (the second dot) of the
+        /// pre-render line.
+        const SPRITE_OVERFLOW  = 0b00100000;
+
+        /// S: Sprite 0 Hit.  Set when a nonzero pixel of sprite 0 overlaps
+        /// a nonzero background pixel; cleared at dot 1 of the pre-render
+        /// line.  Used for raster timing.
+        const SPRITE_ZERO_HIT  = 0b01000000;
+
+        /// V: Vertical blank has started (0: not in vblank; 1: in vblank).
+        /// Set at dot 1 of line 241 (the line *after* the post-render
+        /// line); cleared after reading $2002 and at dot 1 of the
+        /// pre-render line.
+        const VBLANK_STARTED   = 0b10000000;
+    }
+}
+
+impl Default for StatusReg {
+    fn default() -> Self {
+        StatusReg::empty()
+    }
+}
+
+impl StatusReg {
+    pub fn read(&self) -> u8 {
+        self.bits
+    }
+}
+
+// == mask register == //
+
+bitflags! {
+    /// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUMASK
+    pub struct MaskReg: u8 {
+        /// G: Greyscale (0: normal color, 1: produce a greyscale display)
+        const GREYSCALE = 0b00000001;
+
+        /// m: 1: Show background in leftmost 8 pixels of screen, 0: Hide
+        const LEFTMOST_8PXL_BACKGROUND = 0b00000010;
+
+        /// M: 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
+        const LEFTMOST_8PXL_SPRITE = 0b00000100;
+
+        /// b: 1: Show background
+        const SHOW_BACKGROUND = 0b00001000;
+
+        /// s: 1: Show sprites
+        const SHOW_SPRITES = 0b00010000;
+
+        /// R: Emphasize red
+        const EMPHASISE_RED = 0b00100000;
+
+        /// G: Emphasize green
+        const EMPHASISE_GREEN = 0b01000000;
+
+        /// B: Emphasize blue
+        const EMPHASISE_BLUE = 0b10000000;
+    }
+}
+
+impl Default for MaskReg {
+    fn default() -> Self {
+        MaskReg::empty()
+    }
+}
+
+impl MaskReg {
+    pub fn write(&mut self, data: u8) {
+        self.bits = data;
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -103,7 +243,7 @@ mod test {
     fn vram_addr_mirroring() {
         let mut reg = VramAddr {
             value: 0b1001_1110_1111_1111,
-            write_to_lower: true,
+            latch: true,
         };
         reg.mirror();
         assert_eq!(reg.get(), 0b0001_1110_1111_1111);
@@ -111,7 +251,7 @@ mod test {
 
     #[test]
     fn vram_addr_load() {
-        let mut reg = VramAddr::new();
+        let mut reg = VramAddr::default();
         reg.load(0xAC);
         assert_eq!(reg.get(), 0x2C00);
         reg.load(0x5F);
@@ -124,7 +264,7 @@ mod test {
 
     #[test]
     fn vram_addr_inc() {
-        let mut reg = VramAddr::new();
+        let mut reg = VramAddr::default();
         reg.load(0x3F);
         reg.load(0xFF);
         assert_eq!(reg.get(), 0x3FFF);
