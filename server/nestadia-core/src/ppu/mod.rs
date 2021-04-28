@@ -9,11 +9,11 @@ pub const FRAME_HEIGHT: usize = 240;
 pub type PpuFrame = [u8; FRAME_WIDTH * FRAME_HEIGHT];
 
 pub struct Ppu {
-    // internal memory
+    // Internal memory
     palette_table: [u8; 32], // For color stuff
     oam_data: [u8; 64 * 4],  // Object Attribute Memory, internal to PPU
 
-    // registers
+    // Registers
     ctrl_reg: registers::ControlReg,
     mask_reg: registers::MaskReg,
     status_reg: registers::StatusReg,
@@ -21,7 +21,7 @@ pub struct Ppu {
     scroll_reg: registers::ScrollReg,
     addr_reg: registers::VramAddr, // Address register pointing to name tables
 
-    // emulation-specific internal stuff
+    // Emulation-specific internal stuff
     cycle_count: u16,
     scanline: i16,
     frame: PpuFrame,
@@ -258,47 +258,49 @@ impl Ppu {
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
-                // FIXME: this is not how it works!
-                for x in 0..15 {
-                    for y in 0..15 {
-                        show_tile(bus, &mut self.frame, x, y, 0, (x * 15 + y) as u16);
-                    }
-                }
-
                 // Yeah! We got a frame ready
                 return Some(&self.frame);
             }
         }
 
+        self.render_pixel(bus);
+
         None
+    }
+
+    fn render_pixel(&mut self, bus: &mut PpuBus) {
+        use std::convert::TryFrom;
+
+        if self.scanline < 0 || self.scanline > 239 || self.cycle_count > 255 {
+            return;
+        }
+
+        let bank = self.ctrl_reg.background_pattern_base_addr();
+        let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
+
+        let x = self.cycle_count;
+        let y = u16::try_from(self.scanline).unwrap();
+        let tile_x = x / 8;
+        let tile_y = y / 8;
+        let tile_idx = tile_y * 32 + tile_x;
+
+        let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
+
+        let pat_x = x % 8;
+        let pat_y = y % 8;
+        let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
+        let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
+
+        let pat = hi << 1 | lo;
+
+        // TODO: find color from palette
+
+        set_pixel(&mut self.frame, x as usize, y as usize, pat * 4);
     }
 
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
-    }
-}
-
-fn show_tile(bus: &mut PpuBus, frame: &mut PpuFrame, x_offset: usize, y_offset: usize, bank: u16, tile_n: u16) {
-    assert!(bank <= 1);
-
-    let bank_offset = bank * 0x1000;
-
-    let mut tile = [0u8; 16];
-    for i in 0..16u16 {
-        tile[i as usize] = bus.read_chr_mem(bank_offset + tile_n * 16 + i);
-    }
-
-    for y in 0..=7 {
-        let mut upper = tile[y];
-        let mut lower = tile[y + 8];
-
-        for x in (0..=7).rev() {
-            let value = (1 & upper) << 1 | (1 & lower);
-            upper = upper >> 1;
-            lower = lower >> 1;
-            set_pixel(frame, x + x_offset * 8, y + y_offset * 8, value * 2);
-        }
     }
 }
 

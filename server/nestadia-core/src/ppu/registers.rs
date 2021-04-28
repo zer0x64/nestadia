@@ -109,6 +109,48 @@ impl ControlReg {
             1
         }
     }
+
+    pub fn nametable_base_addr(&self) -> u16 {
+        match self.bits & 0b11 {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2c00,
+            _ => unreachable!(),
+        }
+    }
+
+    // pub fn sprite_pattern_base_addr(&self) -> u16 {
+    //     if self.contains(Self::SPRITE_PATTERN_ADDR) {
+    //         0x1000
+    //     } else {
+    //         0x0000
+    //     }
+    // }
+
+    pub fn background_pattern_base_addr(&self) -> u16 {
+        if self.contains(ControlReg::BACKGROUND_PATTERN_ADDR) {
+            0x1000
+        } else {
+            0x0000
+        }
+    }
+
+    // pub fn sprite_size(&self) -> u8 {
+    //     if self.contains(ControlReg::SPRITE_SIZE) {
+    //         16
+    //     } else {
+    //         8
+    //     }
+    // }
+
+    // pub fn master_slave_select(&self) -> u8 {
+    //     if self.contains(ControlReg::SPRITE_SIZE) {
+    //         1
+    //     } else {
+    //         0
+    //     }
+    // }
 }
 
 // == scroll register == //
