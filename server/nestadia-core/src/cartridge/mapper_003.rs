@@ -1,4 +1,5 @@
 use super::Mapper;
+use super::CartridgeReadTarget;
 
 pub struct Mapper003 {
     chr_bank_selector: u8,
@@ -15,10 +16,10 @@ impl Mapper003 {
 }
 
 impl Mapper for Mapper003 {
-    fn cpu_map_read(&self, addr: u16) -> u16 {
+    fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
 
-        addr & mask
+        CartridgeReadTarget::PrgRom(addr & mask)
     }
 
     fn cpu_map_write(&mut self, _addr: u16, data: u8) {

@@ -1,4 +1,5 @@
 use super::Mapper;
+use super::CartridgeReadTarget;
 
 pub struct Mapper001 {
     prg_bank_selector: u8,
@@ -6,8 +7,10 @@ pub struct Mapper001 {
     shift_register: u8,
 }
 
+// TODO: Implement RAM
+
 impl Mapper001 {
-    pub fn new(prg_banks: u8) -> Self {
+    pub fn new() -> Self {
         Self {
             prg_bank_selector: 0,
             chr_bank_selector: 0,
@@ -17,11 +20,11 @@ impl Mapper001 {
 }
 
 impl Mapper for Mapper001 {
-    fn cpu_map_read(&self, addr: u16) -> u16 {
+    fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
         // TODO
         match addr {
-            0x8000..=0xBFFF => (self.prg_bank_selector as u16) * 0x4000 + (addr & 0x3FFF),
-            _ => (self.prg_banks as u16 - 1) * 0x4000 + (addr & 0x3FFF),
+            0x8000..=0xBFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector as u16) * 0x4000 + (addr & 0x3FFF)),
+            _ => CartridgeReadTarget::PrgRom((self.prg_banks as u16 - 1) * 0x4000 + (addr & 0x3FFF)),
         }
     }
 
