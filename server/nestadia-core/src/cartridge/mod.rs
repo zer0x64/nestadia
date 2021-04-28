@@ -57,9 +57,6 @@ impl Cartridge {
 
         log::info!("ROM info: {:?}", &header);
 
-        let mut prg_memory = vec![0u8; PRG_BANK_SIZE * (header.prg_size as usize)];
-        let mut chr_memory = vec![0u8; CHR_BANK_SIZE * (header.chr_size as usize)];
-
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size)),
             2 => Box::new(Mapper002::new(header.prg_size)),
@@ -68,19 +65,31 @@ impl Cartridge {
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
-        let mut start: usize = if header.flags6.contains(Flags6::TRAINER) {
+        let prg_memory_len = PRG_BANK_SIZE * (header.prg_size as usize);
+        let chr_memory_len = CHR_BANK_SIZE * (header.chr_size as usize);
+
+        let prg_start = if header.flags6.contains(Flags6::TRAINER) {
             512 + 16
         } else {
             16
         };
 
-        let end = start + prg_memory.len();
+        let expected_rom_size = prg_start + prg_memory_len + chr_memory_len;
+        if rom.len() < expected_rom_size {
+            println!("Invalid ROM size: expected {} bytes of memory, but ROM has {}", expected_rom_size, rom.len());
+            return Err(RomParserError::TooShort);
+        }
 
-        prg_memory.copy_from_slice(&rom[start..end]);
+        // PRG memory
+        let prg_end = prg_start + prg_memory_len;
+        let prg_memory: Vec<u8> = rom[prg_start..prg_end].iter().copied().collect();
+        assert_eq!(prg_memory.len(), prg_memory_len);
 
-        start += prg_memory.len();
-        let end = start + chr_memory.len();
-        chr_memory.copy_from_slice(&rom[start..end]);
+        // CHR memory
+        let chr_start = prg_end;
+        let chr_end = chr_start + chr_memory_len;
+        let chr_memory: Vec<u8> = rom[chr_start..chr_end].iter().copied().collect();
+        assert_eq!(chr_memory.len(), chr_memory_len);
 
         Ok(Cartridge {
             header,
@@ -101,8 +110,8 @@ impl Cartridge {
     }
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {
-        let addr = self.mapper.cpu_map_read(addr);
-        self.prg_memory[addr as usize]
+        let mapped_addr = self.mapper.cpu_map_read(addr);
+        self.prg_memory[mapped_addr as usize]
     }
 
     pub fn write_prg_mem(&mut self, addr: u16, data: u8) {
@@ -122,7 +131,7 @@ impl Cartridge {
         if let Some(addr) = self.mapper.ppu_map_write(addr) {
             self.chr_memory[addr as usize] = data;
         } else {
-            log::info!(
+            log::warn!(
                 "attempted to write on CHR memory at {}, but this is not supported by this mapper",
                 addr
             );

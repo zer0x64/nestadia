@@ -13,11 +13,15 @@ impl Mapper000 {
 impl Mapper for Mapper000 {
     fn cpu_map_read(&self, addr: u16) -> u16 {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
-
         addr & mask
     }
 
-    fn cpu_map_write(&mut self, _addr: u16, _data: u8) {}
+    fn cpu_map_write(&mut self, addr: u16, data: u8) {
+        log::warn!(
+            "attempted to write {:#X} on PRG memory at {:#X}, but this is not supported by this mapper",
+            data, addr
+        );
+    }
 
     fn ppu_map_read(&self, addr: u16) -> u16 {
         addr

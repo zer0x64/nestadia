@@ -1,7 +1,6 @@
 #[cfg(feature = "debugger")]
 pub mod disassembler;
 mod opcode;
-
 use std::convert::TryFrom as _;
 
 use bitflags::bitflags;
@@ -86,11 +85,11 @@ impl Cpu {
             self.stack_push(bus, (self.pc & 0xff) as u8);
 
             // Push status register
-            self.status_register.set(StatusRegister::B, false);
-            self.status_register.set(StatusRegister::U, true);
+            self.status_register.remove(StatusRegister::B);
+            self.status_register.insert(StatusRegister::U);
             self.stack_push(bus, self.status_register.bits());
 
-            self.status_register.set(StatusRegister::I, true);
+            self.status_register.insert(StatusRegister::I);
 
             self.pc =
                 u16::from(bus.read(IRQ_HANDLER)) | (u16::from(bus.read(IRQ_HANDLER + 1)) << 8);
@@ -105,11 +104,11 @@ impl Cpu {
         self.stack_push(bus, (self.pc & 0xff) as u8);
 
         // Push status register
-        self.status_register.set(StatusRegister::B, false);
-        self.status_register.set(StatusRegister::U, true);
+        self.status_register.remove(StatusRegister::B);
+        self.status_register.insert(StatusRegister::U);
         self.stack_push(bus, self.status_register.bits());
 
-        self.status_register.set(StatusRegister::I, true);
+        self.status_register.insert(StatusRegister::I);
 
         self.pc = u16::from(bus.read(NMI_HANDLER))
             | (u16::from(bus.read(NMI_HANDLER.wrapping_add(1))) << 8);
@@ -940,8 +939,9 @@ impl Cpu {
 
     // Addressing modes
     fn am_imm(&mut self, bus: &mut CpuBus<'_>) -> u8 {
+        let ret = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
-        bus.read(self.pc.wrapping_sub(1))
+        ret
     }
 
     fn am_zp(&mut self, bus: &mut CpuBus<'_>) -> u16 {
@@ -1026,13 +1026,12 @@ impl Cpu {
     }
 
     fn am_rel(&mut self, bus: &mut CpuBus<'_>) -> u16 {
+        let address = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
-
-        let address = bus.read(self.pc.wrapping_sub(1));
 
         // Sign expansion
         if address & 0x80 == 0x80 {
-            (u16::from(address)) | 0xff00
+            u16::from(address) | 0xff00
         } else {
             u16::from(address)
         }
@@ -1567,7 +1566,7 @@ impl CpuBus<'_> {
                 // if cycles % 2 == 1 { 514 } else { 513 }
                 // This will requires a refactor so I'm postponing this task as I need
                 // to get PPU working ASAP.
-            },
+            }
             0x4016 => self.controller1_write(data),
             0x4017 => self.controller2_write(data),
             0x4018..=0x401F => (), // APU and I/O functionality that is normally disabled.
@@ -1580,11 +1579,130 @@ impl CpuBus<'_> {
             0..=0x1FFF => self.read_ram(addr),
             0x2000..=0x3FFF => self.read_ppu_register(addr),
             0x4000..=0x4013 | 0x4015 => 0, // TODO: APU
-            0x4014 => 0, // OAMDMA is write-only
+            0x4014 => 0,                   // OAMDMA is write-only
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),
             0x4018..=0x401F => 0, // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.read_prg_mem(addr),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Cartridge;
+    use crate::Ppu;
+    use crate::RAM_SIZE;
+
+    struct MockEmulator {
+        cpu: Cpu,
+        controller1: u8,
+        controller2: u8,
+        controller1_state: bool,
+        controller2_state: bool,
+        controller1_snapshot: u8,
+        controller2_snapshot: u8,
+        ram: [u8; RAM_SIZE as usize],
+        cartridge: Cartridge,
+        ppu: Ppu,
+        name_tables: [u8; 1024 * 2],
+        last_data_on_ppu_bus: u8,
+    }
+
+    fn mock_emu(prgm: &[u8]) -> MockEmulator {
+        let mut rom = vec![0x00; 65552];
+
+        // dummy header
+        rom[0x0000] = 0x4E;
+        rom[0x0001] = 0x45;
+        rom[0x0002] = 0x53;
+        rom[0x0003] = 0x1A;
+        rom[0x0004] = 0x04;
+        rom[0x0005] = 0x00;
+        rom[0x0006] = 0x31;
+
+        // test program
+        for (i, opcode) in prgm.iter().enumerate() {
+            rom[i + 16 + 0x4020] = *opcode;
+        }
+
+        // write PC start to point on $4020
+        rom[16 + 0x7FFC] = 0x20;
+        rom[16 + 0x7FFD] = 0x40;
+
+        let mut emu = MockEmulator {
+            cpu: Cpu::new(ExecutionMode::Ring3),
+            controller1: 0,
+            controller2: 0,
+            controller1_state: false,
+            controller2_state: false,
+            controller1_snapshot: 0,
+            controller2_snapshot: 0,
+            cartridge: Cartridge::load(&rom).unwrap(),
+
+            ram: [0u8; RAM_SIZE as usize],
+            ppu: Ppu::default(),
+            name_tables: [0u8; 1024 * 2],
+            last_data_on_ppu_bus: 0,
+        };
+
+        emu.cpu.reset(&mut borrow_cpu_bus!(emu));
+
+        emu
+    }
+
+    /// Executes `n` instructions and returns
+    fn execute_n(emu: &mut MockEmulator, n: usize) {
+        let mut bus = borrow_cpu_bus!(emu);
+        for _ in 0..n {
+            loop {
+                emu.cpu.clock(&mut bus);
+                if emu.cpu.cycles == 0 {
+                    break
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_0xa9_lda_immediate_load_data() {
+        let mut emu = mock_emu(&[0xA9, 0x05]);
+        execute_n(&mut emu, 2);
+        assert_eq!(emu.cpu.a, 5);
+        assert!(emu.cpu.status_register.bits & 0b0000_0010 == 0);
+        assert!(emu.cpu.status_register.bits & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_0xaa_tax_move_a_to_x() {
+        let mut emu = mock_emu(&[0xAA]);
+        emu.cpu.a = 10;
+        execute_n(&mut emu, 2);
+        assert_eq!(emu.cpu.x, 10)
+    }
+
+    #[test]
+    fn test_5_ops_working_together() {
+        let mut emu = mock_emu(&[0xA9, 0xC0, 0xAA, 0xE8]);
+        execute_n(&mut emu, 5);
+        assert_eq!(emu.cpu.x, 0xC1);
+    }
+
+    #[test]
+    fn inx_overflow() {
+        let mut emu = mock_emu(&[0xE8, 0xE8]);
+        emu.cpu.x = 0xFF;
+        execute_n(&mut emu, 3);
+        assert_eq!(emu.cpu.x, 1)
+    }
+
+    #[test]
+    fn lda_from_memory() {
+        let mut emu = mock_emu(&[0xA5, 0x10]);
+        let mut bus = borrow_cpu_bus!(emu);
+        bus.write(0x10, 0x55);
+        execute_n(&mut emu, 2);
+        assert_eq!(emu.cpu.a, 0x55);
     }
 }
