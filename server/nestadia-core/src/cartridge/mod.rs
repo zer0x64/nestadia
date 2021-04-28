@@ -110,8 +110,12 @@ impl Cartridge {
     }
 
     pub fn read_chr_mem(&self, addr: u16) -> u8 {
-        let addr = self.mapper.ppu_map_read(addr);
-        self.chr_memory[addr as usize]
+        let addr = self.mapper.ppu_map_read(addr) as usize;
+        if addr < self.chr_memory.len() {
+            self.chr_memory[addr as usize]
+        } else {
+            0
+        }
     }
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
