@@ -35,7 +35,7 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    emulation_state.write().unwrap().is_running = true;
+    //emulation_state.write().unwrap().is_running = true;
     let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
 
     'running: loop {
@@ -81,11 +81,11 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
                 Event::KeyUp {
                     keycode: Some(Keycode::X),
                     ..
-                } => controller_state |= 0x80,
+                } => controller_state &= !0x80,
                 Event::KeyUp {
                     keycode: Some(Keycode::Z),
                     ..
-                } => controller_state |= 0x40,
+                } => controller_state &= !0x40,
                 Event::KeyUp {
                     keycode: Some(Keycode::A),
                     ..
@@ -122,6 +122,10 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
                 if let Some(frame) = emulation_state.emulator.clock() {
                     break frame;
                 }
+                /*else if emulation_state.emulator.cpu().pc == 0xf0ca {
+                    emulation_state.is_running = false;
+                    break &[0u8; 256 * 240];
+                }*/
             };
 
             // Maps 6 bit colors to RGB

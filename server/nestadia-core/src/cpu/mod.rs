@@ -1054,7 +1054,7 @@ impl Cpu {
         let r = (result & 0xff) as u8;
 
         let v = ((self.a ^ r) & !(self.a ^ op)) & 0x80 == 0x80;
-        self.status_register.set(StatusRegister::C, v);
+        self.status_register.set(StatusRegister::V, v);
 
         self.a = r;
 

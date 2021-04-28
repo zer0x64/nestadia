@@ -131,16 +131,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
 impl Handler<Frame> for NestadiaWs {
     type Result = ();
 
-    fn handle(&mut self, _msg: Frame, ctx: &mut Self::Context) {
-        let mut rng = rand::thread_rng();
-        let mut new_frame: Vec<u8> = Vec::new();
-        for _ in 0..240 {
-            let new_val: u8 = rng.gen_range(0..64);
-            new_frame.extend(&[new_val; 256]);
-        }
+    fn handle(&mut self, msg: Frame, ctx: &mut Self::Context) {
+        // let mut rng = rand::thread_rng();
+        // let mut new_frame: Vec<u8> = Vec::new();
+        // for _ in 0..240 {
+        //     let new_val: u8 = rng.gen_range(0..64);
+        //     new_frame.extend(&[new_val; 256]);
+        // }
 
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        match encoder.write_all(&new_frame) {
+        match encoder.write_all(&msg.0) {
             Ok(_) => ctx.binary(encoder.finish().unwrap()), // TODO: Send real frame
             Err(_) => {} //Simply skip the frame if there's an error during compression
         }

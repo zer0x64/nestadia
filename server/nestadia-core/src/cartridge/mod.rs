@@ -132,6 +132,7 @@ impl Cartridge {
     #[cfg(feature = "debugger")]
     pub fn disassemble(&self) -> Vec<(u16, String)> {
         let mut disas1 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x4000);
+        println!("test");
         let disas2 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x8000);
         let disas3 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0xc000);
 

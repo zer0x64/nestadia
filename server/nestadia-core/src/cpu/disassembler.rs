@@ -65,7 +65,6 @@ impl AddressingMode {
 }
 
 pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
-    //HashMap<u16, String> {
     let mut index: usize = 0;
     let mut disassembly = Vec::new();
 
@@ -87,6 +86,8 @@ pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
                 disassembly.push((start + (index as u16), disas));
                 index += 1;
                 index += required_bytes;
+            } else { 
+                index += 1;
             }
         } else {
             disassembly.push((start + (index as u16), "???".to_string()));
