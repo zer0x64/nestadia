@@ -1,5 +1,4 @@
-use super::Mapper;
-use super::CartridgeReadTarget;
+use super::{Mapper, CartridgeReadTarget, Mirroring};
 
 const CHR_MODE_MASK: u8 = 0b10000;
 const PRG_MODE_MASK: u8 = 0b01100;
@@ -59,17 +58,8 @@ impl Mapper for Mapper001 {
     }
 
     fn cpu_map_write(&mut self, addr: u16, data: u8) {
-        // Registers:
-        //      0x8000: control, set some status bits of the mapper and mirroring
-        //      0xA000: CHR LO, info to map CHR ROM
-        //      0xC000: CHR HI, info to map CHR ROM
-        //      0xE000: PRG ROM,
-        // if bit 8 is 1 (0x80) -> reset
-        // 5 writes will set the "load" register
-        //      When 5th bit is set, use bit 13 and 14 of the addr to target 1 of 4 functional register
-        //      Then set the register to the 5 bits that we have
-
         if (0x6000 ..=0x7FFF).contains(&addr) {
+            // Write to RAM
             self.ram_data[(addr & 0x1FFF) as usize] = data;    // TODO: windowed RAM?
         }
 
@@ -141,5 +131,14 @@ impl Mapper for Mapper001 {
 
     fn ppu_map_write(&self, _addr: u16) -> Option<u16> {
         None
+    }
+
+    fn mirroring(&self) -> Mirroring {
+        match self.control_register & 0x03 {
+            0 => Mirroring::OneScreenLower,
+            1 => Mirroring::OneScreenUpper,
+            2 => Mirroring::Vertical,
+            _ => Mirroring::Horizontal,
+        }
     }
 }

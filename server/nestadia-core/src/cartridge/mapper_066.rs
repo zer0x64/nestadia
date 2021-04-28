@@ -1,16 +1,17 @@
-use super::Mapper;
-use super::CartridgeReadTarget;
+use super::{Mapper, CartridgeReadTarget, Mirroring};
 
 pub struct Mapper066 {
     prg_bank_selector: u8,
     chr_bank_selector: u8,
+    mirroring: Mirroring,
 }
 
 impl Mapper066 {
-    pub fn new() -> Self {
+    pub fn new(mirroring: Mirroring) -> Self {
         Self {
             prg_bank_selector: 0,
             chr_bank_selector: 0,
+            mirroring
         }
     }
 }
@@ -31,5 +32,9 @@ impl Mapper for Mapper066 {
 
     fn ppu_map_write(&self, _addr: u16) -> Option<u16> {
         None
+    }
+
+    fn mirroring(&self) -> Mirroring {
+        self.mirroring
     }
 }
