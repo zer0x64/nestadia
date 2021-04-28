@@ -3,7 +3,10 @@ use crate::bus::PpuBus;
 /// Registers definitions
 pub mod registers;
 
-pub type PpuFrame = [u8; 256 * 240];
+pub const FRAME_WIDTH: usize = 256;
+pub const FRAME_HEIGHT: usize = 240;
+
+pub type PpuFrame = [u8; FRAME_WIDTH * FRAME_HEIGHT];
 
 pub struct Ppu {
     // internal memory
@@ -62,7 +65,7 @@ impl Ppu {
         self.addr_reg = registers::VramAddr::default();
         self.cycle_count = 0;
         self.scanline = 0;
-        self.frame = [0u8; 256 * 240];
+        self.frame = [0u8; FRAME_WIDTH * FRAME_HEIGHT];
         self.vblank_nmi_set = false;
     }
 
@@ -79,14 +82,21 @@ impl Ppu {
             0 => {
                 // Write Control register
 
-                let prewrite_generate_nmi_ctrl_state = self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
+                let prewrite_generate_nmi_ctrl_state =
+                    self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
 
                 self.ctrl_reg.write(data);
 
-                let postwrite_generate_nmi_ctrl_state = self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
-                let is_in_vblank = self.status_reg.contains(registers::StatusReg::VBLANK_STARTED);
+                let postwrite_generate_nmi_ctrl_state =
+                    self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
+                let is_in_vblank = self
+                    .status_reg
+                    .contains(registers::StatusReg::VBLANK_STARTED);
 
-                if !prewrite_generate_nmi_ctrl_state && postwrite_generate_nmi_ctrl_state && is_in_vblank {
+                if !prewrite_generate_nmi_ctrl_state
+                    && postwrite_generate_nmi_ctrl_state
+                    && is_in_vblank
+                {
                     self.vblank_nmi_set = true;
                 }
             }
@@ -138,9 +148,9 @@ impl Ppu {
                     // (usually, used for transparency)
                     0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
                         let write_addr_mirror = write_addr - 0x10;
-                        self.palette_table[(write_addr_mirror - 0x3F00) as usize] = data;
+                        self.palette_table[(write_addr_mirror % 32) as usize] = data;
                     }
-                    0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize] = data,
+                    0x3F00..=0x3FFF => self.palette_table[(write_addr % 32) as usize] = data,
 
                     _ => unreachable!("unexpected write to mirrored space {:#X}", write_addr),
                 }
@@ -224,7 +234,6 @@ impl Ppu {
 
     /// Returns frame when it's ready
     pub fn clock(&mut self) -> Option<&PpuFrame> {
-        let mut frame = None;
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -236,7 +245,8 @@ impl Ppu {
 
             if self.scanline == 241 {
                 self.status_reg.insert(registers::StatusReg::VBLANK_STARTED);
-                self.status_reg.remove(registers::StatusReg::SPRITE_ZERO_HIT);
+                self.status_reg
+                    .remove(registers::StatusReg::SPRITE_ZERO_HIT);
                 if self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI) {
                     self.vblank_nmi_set = true;
                 }
@@ -249,19 +259,33 @@ impl Ppu {
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
                 // Yeah! We got a frame ready
-                frame = Some(&self.frame);
+                return Some(&self.frame);
             }
         }
 
-        // <-- TODO: write to frame here :)
+        if (0..240).contains(&self.scanline) {
+            set_pixel(
+                &mut self.frame,
+                self.cycle_count as usize,
+                self.scanline as usize,
+                ((self.cycle_count as i16 + self.scanline) % 64) as u8,
+            );
+        }
 
-        // Frame is not ready yet
-        frame
+        None
     }
 
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
+    }
+}
+
+// helper to set a pixel on PPU frame
+fn set_pixel(frame: &mut PpuFrame, x: usize, y: usize, color: u8) {
+    let idx = y * FRAME_WIDTH + x;
+    if idx < frame.len() {
+        frame[idx] = color;
     }
 }
 
