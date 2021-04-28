@@ -293,9 +293,32 @@ impl Ppu {
 
         let pat = hi << 1 | lo;
 
-        // TODO: find color from palette
+        let palette = self.bg_pallette(bus, tile_x, tile_y);
+        let color = palette[pat as usize];
 
-        set_pixel(&mut self.frame, x as usize, y as usize, pat * 4);
+        set_pixel(&mut self.frame, x as usize, y as usize, color);
+    }
+
+    fn bg_pallette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
+        let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
+        let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
+        let attr_byte = bus.read_name_tables(nametable_base_addr + 960 + attr_table_idx);
+
+        let palette_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+            (0, 0) => attr_byte & 0b11,
+            (1, 0) => (attr_byte >> 2) & 0b11,
+            (0, 1) => (attr_byte >> 4) & 0b11,
+            (1, 1) => (attr_byte >> 6) & 0b11,
+            _ => unreachable!(),
+        };
+
+        let pallete_start: usize = 1 + (palette_idx as usize) * 4;
+        [
+            self.palette_table[0],
+            self.palette_table[pallete_start],
+            self.palette_table[pallete_start + 1],
+            self.palette_table[pallete_start + 2],
+        ]
     }
 
     fn increment_vram_addr(&mut self) {
