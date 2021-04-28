@@ -5,11 +5,6 @@ pub mod registers;
 
 pub type PpuFrame = [u8; 256 * 240];
 
-pub enum PpuEvent<'a> {
-    Nmi,
-    Frame(&'a PpuFrame),
-}
-
 pub struct Ppu {
     // internal memory
     palette_table: [u8; 32], // For color stuff
@@ -27,6 +22,7 @@ pub struct Ppu {
     cycle_count: u16,
     scanline: i16,
     frame: PpuFrame,
+    vblank_nmi_set: bool,
 }
 
 impl Default for Ppu {
@@ -51,6 +47,7 @@ impl Ppu {
             cycle_count: 0,
             scanline: 0,
             frame: [0u8; 256 * 240],
+            vblank_nmi_set: false,
         }
     }
 
@@ -66,6 +63,13 @@ impl Ppu {
         self.cycle_count = 0;
         self.scanline = 0;
         self.frame = [0u8; 256 * 240];
+        self.vblank_nmi_set = false;
+    }
+
+    pub fn take_vblank_nmi_set_state(&mut self) -> bool {
+        let state = self.vblank_nmi_set;
+        self.vblank_nmi_set = false;
+        state
     }
 
     pub fn write(&mut self, bus: &mut PpuBus<'_>, addr: u16, data: u8) {
@@ -74,7 +78,17 @@ impl Ppu {
         match addr {
             0 => {
                 // Write Control register
+
+                let prewrite_generate_nmi_ctrl_state = self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
+
                 self.ctrl_reg.write(data);
+
+                let postwrite_generate_nmi_ctrl_state = self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI);
+                let is_in_vblank = self.status_reg.contains(registers::StatusReg::VBLANK_STARTED);
+
+                if !prewrite_generate_nmi_ctrl_state && postwrite_generate_nmi_ctrl_state && is_in_vblank {
+                    self.vblank_nmi_set = true;
+                }
             }
             1 => {
                 // Write Mask register
@@ -209,8 +223,8 @@ impl Ppu {
     }
 
     /// Returns frame when it's ready
-    pub fn clock(&mut self) -> Option<PpuEvent<'_>> {
-        let mut event = None;
+    pub fn clock(&mut self) -> Option<&PpuFrame> {
+        let mut frame = None;
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -224,7 +238,7 @@ impl Ppu {
                 self.status_reg.insert(registers::StatusReg::VBLANK_STARTED);
                 self.status_reg.remove(registers::StatusReg::SPRITE_ZERO_HIT);
                 if self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI) {
-                    event = Some(PpuEvent::Nmi);
+                    self.vblank_nmi_set = true;
                 }
             } else if self.scanline >= 261 {
                 // http://wiki.nesdev.com/w/index.php/PPU_rendering#Pre-render_scanline_.28-1_or_261.29
@@ -235,14 +249,14 @@ impl Ppu {
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
                 // Yeah! We got a frame ready
-                event = Some(PpuEvent::Frame(&self.frame));
+                frame = Some(&self.frame);
             }
         }
 
         // <-- TODO: write to frame here :)
 
         // Frame is not ready yet
-        event
+        frame
     }
 
     fn increment_vram_addr(&mut self) {

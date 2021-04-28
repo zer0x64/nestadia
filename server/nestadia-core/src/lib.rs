@@ -10,7 +10,7 @@ pub use ppu::Ppu;
 
 use crate::cartridge::Cartridge;
 use crate::cartridge::RomParserError;
-use crate::ppu::{PpuFrame, PpuEvent};
+use crate::ppu::PpuFrame;
 
 pub const RAM_SIZE: u16 = 0x0800;
 
@@ -40,7 +40,6 @@ pub struct Emulator {
     last_data_on_ppu_bus: u8,
 
     // Emulator internal state
-    vblank_nmi_waiting: bool,
     clock_count: u8,
 }
 
@@ -62,7 +61,6 @@ impl Emulator {
             name_tables: [0u8; 1024 * 2],
             last_data_on_ppu_bus: 0,
 
-            vblank_nmi_waiting: false,
             clock_count: 0,
         };
 
@@ -76,27 +74,20 @@ impl Emulator {
         if self.clock_count % 3 == 0 {
             self.clock_count = 0;
 
-            let mut cpu_bus = borrow_cpu_bus!(self);
-            if self.vblank_nmi_waiting && self.cpu.cycles == 0 {
+            if self.cpu.cycles == 0 && self.ppu.take_vblank_nmi_set_state() {
                 // NMI interrupt
+                let mut cpu_bus = borrow_cpu_bus!(self);
                 self.cpu.nmi(&mut cpu_bus);
-                self.vblank_nmi_waiting = false;
                 self.cpu.clock(&mut cpu_bus);
             } else {
+                let mut cpu_bus = borrow_cpu_bus!(self);
                 self.cpu.clock(&mut cpu_bus);
             }
         }
 
         self.clock_count = self.clock_count.wrapping_add(1);
 
-        match self.ppu.clock() {
-            Some(PpuEvent::Nmi) => {
-                self.vblank_nmi_waiting = true;
-                None
-            }
-            Some(PpuEvent::Frame(frame)) => Some(frame),
-            None => None,
-        }
+        self.ppu.clock()
     }
 
     pub fn set_controller1(&mut self, state: u8) {
