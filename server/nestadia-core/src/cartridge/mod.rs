@@ -93,6 +93,7 @@ impl Cartridge {
         Ok(Cartridge {
             header,
             prg_memory,
+            prg_ram_memory,
             chr_memory,
             mapper,
         })
