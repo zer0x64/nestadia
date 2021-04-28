@@ -5,6 +5,11 @@ pub mod registers;
 
 pub type PpuFrame = [u8; 256 * 240];
 
+pub enum PpuEvent<'a> {
+    Nmi,
+    Frame(&'a PpuFrame),
+}
+
 pub struct Ppu {
     // internal memory
     palette_table: [u8; 32], // For color stuff
@@ -204,25 +209,40 @@ impl Ppu {
     }
 
     /// Returns frame when it's ready
-    #[allow(unused_variables)] // FIXME
-    pub fn clock(&mut self, bus: &mut PpuBus<'_>) -> Option<&PpuFrame> {
+    pub fn clock(&mut self) -> Option<PpuEvent<'_>> {
+        let mut event = None;
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
-            self.cycle_count = 0;
+            // TODO: check for sprite zero hit (Sprite 0 hit is not detected at x=255, nor is it
+            // detected at x=0 through 7 if the background or sprites are hidden in this area.)
+
+            self.cycle_count = self.cycle_count - 341;
             self.scanline += 1;
 
-            if self.scanline >= 261 {
-                // Yeah! We got a frame ready
+            if self.scanline == 241 {
+                self.status_reg.insert(registers::StatusReg::VBLANK_STARTED);
+                self.status_reg.remove(registers::StatusReg::SPRITE_ZERO_HIT);
+                if self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI) {
+                    event = Some(PpuEvent::Nmi);
+                }
+            } else if self.scanline >= 261 {
+                // http://wiki.nesdev.com/w/index.php/PPU_rendering#Pre-render_scanline_.28-1_or_261.29
+                // scanline = -1 is the dummy scanline
                 self.scanline = -1;
-                return Some(&self.frame);
+
+                // VBLANK is done
+                self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
+
+                // Yeah! We got a frame ready
+                event = Some(PpuEvent::Frame(&self.frame));
             }
         }
 
         // <-- TODO: write to frame here :)
 
         // Frame is not ready yet
-        None
+        event
     }
 
     fn increment_vram_addr(&mut self) {

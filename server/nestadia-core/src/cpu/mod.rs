@@ -99,7 +99,6 @@ impl Cpu {
         }
     }
 
-    #[allow(dead_code)] // FIXME
     pub fn nmi(&mut self, bus: &mut CpuBus<'_>) {
         // Push current PC
         self.stack_push(bus, ((self.pc >> 8) & 0xff) as u8);
