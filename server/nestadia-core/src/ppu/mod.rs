@@ -233,7 +233,7 @@ impl Ppu {
     }
 
     /// Returns frame when it's ready
-    pub fn clock(&mut self) -> Option<&PpuFrame> {
+    pub fn clock(&mut self, bus: &mut PpuBus) -> Option<&PpuFrame> {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -258,18 +258,16 @@ impl Ppu {
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
+                // FIXME: this is not how it works!
+                for x in 0..15 {
+                    for y in 0..15 {
+                        show_tile(bus, &mut self.frame, x, y, 0, (x * 15 + y) as u16);
+                    }
+                }
+
                 // Yeah! We got a frame ready
                 return Some(&self.frame);
             }
-        }
-
-        if (0..240).contains(&self.scanline) {
-            set_pixel(
-                &mut self.frame,
-                self.cycle_count as usize,
-                self.scanline as usize,
-                ((self.cycle_count as i16 + self.scanline) % 64) as u8,
-            );
         }
 
         None
@@ -278,6 +276,29 @@ impl Ppu {
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
+    }
+}
+
+fn show_tile(bus: &mut PpuBus, frame: &mut PpuFrame, x_offset: usize, y_offset: usize, bank: u16, tile_n: u16) {
+    assert!(bank <= 1);
+
+    let bank_offset = bank * 0x1000;
+
+    let mut tile = [0u8; 16];
+    for i in 0..16u16 {
+        tile[i as usize] = bus.read_chr_mem(bank_offset + tile_n * 16 + i);
+    }
+
+    for y in 0..=7 {
+        let mut upper = tile[y];
+        let mut lower = tile[y + 8];
+
+        for x in (0..=7).rev() {
+            let value = (1 & upper) << 1 | (1 & lower);
+            upper = upper >> 1;
+            lower = lower >> 1;
+            set_pixel(frame, x + x_offset * 8, y + y_offset * 8, value * 2);
+        }
     }
 }
 

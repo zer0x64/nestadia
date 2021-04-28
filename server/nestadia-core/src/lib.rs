@@ -87,7 +87,8 @@ impl Emulator {
 
         self.clock_count = self.clock_count.wrapping_add(1);
 
-        self.ppu.clock()
+        let mut ppu_bus = borrow_ppu_bus!(self);
+        self.ppu.clock(&mut ppu_bus)
     }
 
     pub fn set_controller1(&mut self, state: u8) {
