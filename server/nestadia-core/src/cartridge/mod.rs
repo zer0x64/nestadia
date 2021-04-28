@@ -36,7 +36,7 @@ impl std::fmt::Display for RomParserError {
 impl std::error::Error for RomParserError {}
 
 enum CartridgeReadTarget {
-    PrgRam(u16),
+    PrgRam(u8),
     PrgRom(u16),
 }
 
@@ -50,7 +50,6 @@ trait Mapper: Send + Sync {
 pub struct Cartridge {
     header: INesHeader,
     prg_memory: Vec<u8>, // program ROM, used by CPU
-    prg_ram_memory: Vec<u8>, // program RAM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
     mapper: Box<dyn Mapper>,
 }
@@ -65,7 +64,6 @@ impl Cartridge {
         log::info!("ROM info: {:?}", &header);
 
         let mut prg_memory = vec![0u8; PRG_BANK_SIZE * (header.prg_size as usize)];
-        let mut prg_ram_memory = vec![0u8; 0x2000];
         let mut chr_memory = vec![0u8; CHR_BANK_SIZE * (header.chr_size as usize)];
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
@@ -93,7 +91,6 @@ impl Cartridge {
         Ok(Cartridge {
             header,
             prg_memory,
-            prg_ram_memory,
             chr_memory,
             mapper,
         })
@@ -113,7 +110,7 @@ impl Cartridge {
         let addr = self.mapper.cpu_map_read(addr);
         match addr {
             CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr as usize],
-            CartridgeReadTarget::PrgRam(ram_addr) => self.prg_ram_memory[ram_addr as usize],
+            CartridgeReadTarget::PrgRam(data) => data,
         }
     }
 
