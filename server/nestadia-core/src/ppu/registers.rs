@@ -144,13 +144,13 @@ impl ScrollReg {
         self.latch = false;
     }
 
-    pub fn scroll_x(&self) -> u8 {
-        self.scroll_x
-    }
+    // pub fn scroll_x(&self) -> u8 {
+    //     self.scroll_x
+    // }
 
-    pub fn scroll_y(&self) -> u8 {
-        self.scroll_y
-    }
+    // pub fn scroll_y(&self) -> u8 {
+    //     self.scroll_y
+    // }
 }
 
 // == status register == //

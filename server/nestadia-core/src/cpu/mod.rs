@@ -1547,10 +1547,31 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.write_ram(addr, data),
             0x2000..=0x3FFF => self.write_ppu_register(addr, data),
-            0x4000..=0x4015 => (), // TODO: APU and Audio
+            0x4000..=0x4013 | 0x4015 => (), // TODO: APU
+            0x4014 => {
+                // https://wiki.nesdev.com/w/index.php/PPU_registers#OAMDMA
+                let page_begin = u16::from(data) << 8;
+                let mut buffer = [0u8; 256];
+                for offset in 0..256 {
+                    buffer[usize::from(offset)] = self.read(page_begin + offset);
+                }
+                self.write_ppu_oam_dma(&buffer);
+
+                // FIXME: this operation takes a number of cycles to perform
+                // As per nesdev wiki:
+                // "The CPU is suspended during the transfer,
+                // which will take 513 or 514 cycles after the $4014 write tick.
+                // (1 wait state cycle while waiting for writes to complete,
+                // +1 if on an odd CPU cycle, then 256 alternating read/write cycles.)"
+                // TODO: Cpu's cycle type must be changed to a `u16`
+                // Additional cycles should be computed as follow:
+                // if cycles % 2 == 1 { 514 } else { 513 }
+                // This will requires a refactor so I'm postponing this task as I need
+                // to get PPU working ASAP.
+            },
             0x4016 => self.controller1_write(data),
             0x4017 => self.controller2_write(data),
-            0x4018..=0x401F => (), // TODO: APU and Audio
+            0x4018..=0x401F => (), // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.write_prg_mem(addr, data),
         };
     }
@@ -1559,10 +1580,11 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.read_ram(addr),
             0x2000..=0x3FFF => self.read_ppu_register(addr),
-            0x4000..=0x4015 => 0, // TODO: APU and Audio
+            0x4000..=0x4013 | 0x4015 => 0, // TODO: APU
+            0x4014 => 0, // OAMDMA is write-only
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),
-            0x4018..=0x401F => 0, // TODO: APU and Audio
+            0x4018..=0x401F => 0, // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.read_prg_mem(addr),
         }
     }

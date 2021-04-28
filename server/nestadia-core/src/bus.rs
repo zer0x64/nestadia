@@ -131,6 +131,10 @@ impl CpuBus<'_> {
     pub fn read_prg_mem(&mut self, addr: u16) -> u8 {
         self.cartridge.read_prg_mem(addr)
     }
+
+    pub fn write_ppu_oam_dma(&mut self, buffer: &[u8; 256]) {
+        self.ppu.write_oam_dma(buffer);
+    }
 }
 
 pub struct PpuBus<'a> {

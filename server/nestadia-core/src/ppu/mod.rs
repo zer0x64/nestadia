@@ -72,6 +72,7 @@ impl Ppu {
             4 => {
                 // Write OAM Data
                 self.oam_data[self.oam_addr_reg as usize] = data;
+                // Writes increment OAM addr
                 self.oam_addr_reg = self.oam_addr_reg.wrapping_add(1);
             }
             5 => {
@@ -117,6 +118,13 @@ impl Ppu {
         }
     }
 
+    pub fn write_oam_dma(&mut self, buffer: &[u8; 256]) {
+        for data in buffer.iter() {
+            self.oam_data[self.oam_addr_reg as usize] = *data;
+            self.oam_addr_reg = self.oam_addr_reg.wrapping_add(1);
+        }
+    }
+
     pub fn read(&mut self, bus: &mut PpuBus<'_>, addr: u16) -> u8 {
         let addr = addr & 0x07; // mirror
 
@@ -139,6 +147,7 @@ impl Ppu {
             }
             4 => {
                 // Read OAM Data
+                // Reads do not cause increment
                 self.oam_data[self.oam_addr_reg as usize]
             }
             7 => {
@@ -440,9 +449,10 @@ pub mod test {
         data[255] = 0x88;
 
         emu.ppu.write(&mut bus, 0x2003, 0x10);
-        // TODO: emu.ppu.write_oam_dma(&data);
+        emu.ppu.write_oam_dma(&data);
 
-        emu.ppu.write(&mut bus, 0x2004, 0x0F);
+        assert_eq!(emu.ppu.read(&mut bus, 0x2004), 0x77);
+        emu.ppu.write(&mut bus, 0x2003, 0x0F); // "wrap around"
         assert_eq!(emu.ppu.read(&mut bus, 0x2004), 0x88);
     }
 }
