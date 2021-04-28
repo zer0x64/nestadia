@@ -2,8 +2,8 @@
 use super::disassembler::AddressingMode;
 use num_enum::TryFromPrimitive;
 
+#[derive(TryFromPrimitive, Debug, Clone, Copy)]
 #[repr(u8)]
-#[derive(TryFromPrimitive, Debug)]
 pub enum Opcode {
     Brk = 0x00,
     OraIndX = 0x01,

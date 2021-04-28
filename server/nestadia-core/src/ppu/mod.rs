@@ -258,6 +258,9 @@ impl Ppu {
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
+                // TMP
+                self.dump_sprites(bus);
+
                 // Yeah! We got a frame ready
                 return Some(&self.frame);
             }
@@ -293,22 +296,102 @@ impl Ppu {
 
         let pat = hi << 1 | lo;
 
-        // TODO: find color from palette
+        let palette = self.bg_palette(bus, tile_x, tile_y);
+        let color = palette[pat as usize];
 
-        set_pixel(&mut self.frame, x as usize, y as usize, pat * 4);
+        self.set_pixel(x, y, color);
+    }
+
+    fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
+        let idx = y as usize * FRAME_WIDTH + x as usize;
+        if idx < self.frame.len() {
+            self.frame[idx] = color;
+        }
+    }
+
+    fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
+        let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
+        let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
+        let attr_byte = bus.read_name_tables(nametable_base_addr + 960 + attr_table_idx);
+
+        let palette_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+            (0, 0) => attr_byte & 0b11,
+            (1, 0) => (attr_byte >> 2) & 0b11,
+            (0, 1) => (attr_byte >> 4) & 0b11,
+            (1, 1) => (attr_byte >> 6) & 0b11,
+            _ => unreachable!(),
+        };
+
+        let pallete_start = 1 + (palette_idx as usize) * 4;
+        [
+            self.palette_table[0],
+            self.palette_table[pallete_start],
+            self.palette_table[pallete_start + 1],
+            self.palette_table[pallete_start + 2],
+        ]
+    }
+
+    fn sprite_palette(&mut self, palette_idx: u8) -> [u8; 4] {
+        let pallete_start = usize::from(palette_idx) * 4 + 1;
+        [
+            self.palette_table[0],
+            self.palette_table[pallete_start],
+            self.palette_table[pallete_start + 1],
+            self.palette_table[pallete_start + 2],
+        ]
+    }
+
+    // FIXME: should probably be done pixel by pixel like the background
+    fn dump_sprites(&mut self, bus: &mut PpuBus) {
+        for i in (0..self.oam_data.len()).step_by(4).rev() {
+            let tile_idx = self.oam_data[i + 1] as u16;
+            let tile_x = self.oam_data[i + 3] as u16;
+            let tile_y = self.oam_data[i] as u16;
+
+            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
+                true
+            } else {
+                false
+            };
+            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
+                true
+            } else {
+                false
+            };
+            let palette_idx = self.oam_data[i + 2] & 0b11;
+            let sprite_palette = self.sprite_palette(palette_idx);
+
+            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
+
+            let mut tile = [0u8; 16];
+            for i in 0..16 {
+                tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
+            }
+
+            for y in 0..=7 {
+                for x in (0..=7).rev() {
+                    let hi = tile[y as usize] >> x;
+                    let lo = tile[y as usize + 8] >> x;
+                    let pat = (1 & lo) << 1 | (1 & hi);
+                    if pat == 0 {
+                        // transparant
+                    } else {
+                        let color = sprite_palette[pat as usize];
+                        match (flip_horizontal, flip_vertical) {
+                            (false, false) => self.set_pixel(tile_x + x, tile_y + y, color),
+                            (true, false) => self.set_pixel(tile_x + 7 - x, tile_y + y, color),
+                            (false, true) => self.set_pixel(tile_x + x, tile_y + 7 - y, color),
+                            (true, true) => self.set_pixel(tile_x + 7 - x, tile_y + 7 - y, color),
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
-    }
-}
-
-// helper to set a pixel on PPU frame
-fn set_pixel(frame: &mut PpuFrame, x: usize, y: usize, color: u8) {
-    let idx = y * FRAME_WIDTH + x;
-    if idx < frame.len() {
-        frame[idx] = color;
     }
 }
 
