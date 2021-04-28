@@ -101,11 +101,11 @@ impl Ppu {
                     0x3000..=0x3EFF => log::warn!("address space 0x3000..0x3EFF is not expected to be used, but it was attempted to write at 0x{:#X}", write_addr),
 
                     // Palette table:
-                    // Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+                    // Mirror some specific addresses to $3F00/$3F04/$3F08/$3F0C
                     // (usually, used for transparency)
                     0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
-                        let add_mirror = addr - 0x10;
-                        self.palette_table[(add_mirror - 0x3F00) as usize] = data;
+                        let write_addr_mirror = write_addr - 0x10;
+                        self.palette_table[(write_addr_mirror - 0x3F00) as usize] = data;
                     }
                     0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize] = data,
 
@@ -171,7 +171,12 @@ impl Ppu {
                     }
 
                     // Palette table is not behind bus, it can be directly returned.
-                    // FIXME: do we need to mirror as well?
+                    // Mirror some specific addresses to $3F00/$3F04/$3F08/$3F0C
+                    // (usually, used for transparency)
+                    0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
+                        let read_addr_mirror = read_addr - 0x10;
+                        self.palette_table[(read_addr_mirror - 0x3F00) as usize]
+                    }
                     0x3F00..=0x3FFF => self.palette_table[usize::from(read_addr - 0x3F00)],
 
                     _ => unreachable!("unexpected access to mirrored space {:#X}", read_addr),
@@ -438,7 +443,6 @@ pub mod test {
         assert_eq!(emu.ppu.read(&mut bus, 0x2004), 0x77);
     }
 
-    // TODO: http://wiki.nesdev.com/w/index.php/PPU_registers#OAMDMA
     #[test]
     fn oam_dma() {
         let mut emu = mock_emu_horizontal();
