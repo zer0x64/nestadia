@@ -71,7 +71,7 @@ vwait2:
   bpl vwait2
 
   ; Draw HELLO WORLD text
-  jsr drawHelloWorld
+  ;jsr drawHelloWorld
 
   ; Turn screen on
   lda #0
@@ -84,6 +84,36 @@ vwait2:
 
 
 mainLoop:
+
+  ; Input feed
+  lda #$1
+  sta $4016
+  lda #$0
+  sta $4016
+  
+  ; read A: Increment mem
+  lda $4016
+  and #1
+  bne a_button
+  
+  ; read B: Next byte
+  lda $4016
+  and #1
+  bne b_button
+  
+  ; read Start: Hail Mary
+  lda $4016
+  lda $4016
+  and #1
+  bne start_button
+  jmp end_input
+  
+  a_button:
+  b_button:
+  start_button:
+  end_input:
+
+  ; Vulnerable part
   lda #$6c
   sta $1000
   lda #$ff

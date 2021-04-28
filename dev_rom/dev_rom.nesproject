@@ -73,6 +73,7 @@
   <symbolinspector/>
   <breakpoints>
    <breakpoint event="0" item1absolute="75" conditiontype="0" item1="49227" condition="0" item2="49227" itemMask="65535" type="0" target="0" datatype="0" itemtype="0" data="0" enabled="1" itemMaskExclusive="1"/>
+   <breakpoint event="0" item1absolute="92" conditiontype="0" item1="49244" condition="0" item2="49244" itemMask="65535" type="0" target="0" datatype="0" itemtype="0" data="0" enabled="0" itemMaskExclusive="1"/>
   </breakpoints>
   <markers>
    <marker state="0" endabsaddr="0" startaddr="0" index="0" startabsaddr="0" endaddr="0"/>
