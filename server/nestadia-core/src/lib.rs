@@ -94,7 +94,7 @@ impl Emulator {
     pub fn reset(&mut self) {
         let mut cpu_bus = borrow_cpu_bus!(self);
         self.cpu.reset(&mut cpu_bus);
-        // TODO: PPU reset?
+        self.ppu.reset();
         self.clock_count = 0;
     }
 

@@ -49,6 +49,20 @@ impl Ppu {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.palette_table = [0u8; 32];
+        self.oam_data = [0u8; 64 * 4];
+        self.ctrl_reg = registers::ControlReg::default();
+        self.mask_reg = registers::MaskReg::default();
+        self.status_reg = registers::StatusReg::default();
+        self.oam_addr_reg = 0;
+        self.scroll_reg = registers::ScrollReg::default();
+        self.addr_reg = registers::VramAddr::default();
+        self.cycle_count = 0;
+        self.scanline = 0;
+        self.frame = [0u8; 256 * 240];
+    }
+
     pub fn write(&mut self, bus: &mut PpuBus<'_>, addr: u16, data: u8) {
         let addr = addr & 0x07; // mirror
 
