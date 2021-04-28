@@ -120,13 +120,13 @@ impl ControlReg {
         }
     }
 
-    // pub fn sprite_pattern_base_addr(&self) -> u16 {
-    //     if self.contains(Self::SPRITE_PATTERN_ADDR) {
-    //         0x1000
-    //     } else {
-    //         0x0000
-    //     }
-    // }
+    pub fn sprite_pattern_base_addr(&self) -> u16 {
+        if self.contains(Self::SPRITE_PATTERN_ADDR) {
+            0x1000
+        } else {
+            0x0000
+        }
+    }
 
     pub fn background_pattern_base_addr(&self) -> u16 {
         if self.contains(ControlReg::BACKGROUND_PATTERN_ADDR) {
