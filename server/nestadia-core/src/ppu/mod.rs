@@ -296,7 +296,10 @@ impl Ppu {
         let palette = self.bg_pallette(bus, tile_x, tile_y);
         let color = palette[pat as usize];
 
-        set_pixel(&mut self.frame, x as usize, y as usize, color);
+        let idx = y as usize * FRAME_WIDTH + x as usize;
+        if idx < self.frame.len() {
+            self.frame[idx] = color;
+        }
     }
 
     fn bg_pallette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
@@ -324,14 +327,6 @@ impl Ppu {
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
-    }
-}
-
-// helper to set a pixel on PPU frame
-fn set_pixel(frame: &mut PpuFrame, x: usize, y: usize, color: u8) {
-    let idx = y * FRAME_WIDTH + x;
-    if idx < frame.len() {
-        frame[idx] = color;
     }
 }
 
