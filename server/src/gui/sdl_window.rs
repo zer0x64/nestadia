@@ -35,7 +35,6 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    //emulation_state.write().unwrap().is_running = true;
     let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
 
     'running: loop {

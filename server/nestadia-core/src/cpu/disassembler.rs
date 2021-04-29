@@ -86,7 +86,7 @@ pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
                 disassembly.push((start + (index as u16), disas));
                 index += 1;
                 index += required_bytes;
-            } else { 
+            } else {
                 index += 1;
             }
         } else {
