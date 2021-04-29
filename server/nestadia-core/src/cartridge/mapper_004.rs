@@ -28,7 +28,7 @@ impl Mapper004 {
             chr_inverson: false,
             register: [0u8; 8],
             target_register: 0,
-            ram_data: vec![0u8; 0x8000],
+            ram_data: vec![0u8; 0x2000],
 
             irq_active: false,
             irq_enabled: false,
