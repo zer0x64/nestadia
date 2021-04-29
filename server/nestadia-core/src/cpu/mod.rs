@@ -1091,10 +1091,10 @@ impl Cpu {
             .set(StatusRegister::C, op & 0x80 == 0x80);
         let result = op << 1;
 
-        let z = self.a == 0;
+        let z = result == 0;
         self.status_register.set(StatusRegister::Z, z);
 
-        let n = self.a & 0x80 == 0x80;
+        let n = result & 0x80 == 0x80;
         self.status_register.set(StatusRegister::N, n);
 
         result
