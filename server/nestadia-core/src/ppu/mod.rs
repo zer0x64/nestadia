@@ -176,7 +176,11 @@ impl Ppu {
             // Not readable addresses
             0 | 1 | 3 | 5 | 6 => {
                 // Control, mask, OAM address, scroll, PPU Address
-                log::warn!("Attempted to read write-only PPU address: {:#X} (culprit at {})", addr, std::panic::Location::caller());
+                log::warn!(
+                    "Attempted to read write-only PPU address: {:#X} (culprit at {})",
+                    addr,
+                    std::panic::Location::caller()
+                );
                 0
             }
 

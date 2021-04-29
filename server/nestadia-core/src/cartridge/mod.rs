@@ -58,6 +58,7 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
+    chr_ram: bool,
     prg_memory: Vec<u8>, // program ROM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
     mapper: Box<dyn Mapper>,
@@ -90,8 +91,8 @@ impl Cartridge {
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
-        let prg_memory_len = PRG_BANK_SIZE * (header.prg_size as usize);
         let chr_memory_len = CHR_BANK_SIZE * (header.chr_size as usize);
+        let prg_memory_len = PRG_BANK_SIZE * (header.prg_size as usize);
 
         let prg_start = if header.flags6.contains(Flags6::TRAINER) {
             512 + 16
@@ -101,7 +102,11 @@ impl Cartridge {
 
         let expected_rom_size = prg_start + prg_memory_len + chr_memory_len;
         if rom.len() < expected_rom_size {
-            println!("Invalid ROM size: expected {} bytes of memory, but ROM has {}", expected_rom_size, rom.len());
+            println!(
+                "Invalid ROM size: expected {} bytes of memory, but ROM has {}",
+                expected_rom_size,
+                rom.len()
+            );
             return Err(RomParserError::TooShort);
         }
 
@@ -111,12 +116,18 @@ impl Cartridge {
         assert_eq!(prg_memory.len(), prg_memory_len);
 
         // CHR memory
-        let chr_start = prg_end;
-        let chr_end = prg_end + chr_memory_len;
-        let chr_memory = rom[chr_start..chr_end].to_vec();
-        assert_eq!(chr_memory.len(), chr_memory_len);
+        // Don't parse if it's RAM
+        let chr_ram = header.chr_size == 0;
+        let chr_memory = if !chr_ram {
+            let chr_start = prg_end;
+            let chr_end = prg_end + chr_memory_len;
+            rom[chr_start..chr_end].to_vec()
+        } else {
+            vec![0u8; CHR_BANK_SIZE]
+        };
 
         Ok(Cartridge {
+            chr_ram,
             prg_memory,
             chr_memory,
             mapper,
@@ -148,14 +159,21 @@ impl Cartridge {
     }
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
-        if let Some(addr) = self.mapper.ppu_map_write(addr) {
-            self.chr_memory[addr] = data;
+        if self.chr_ram {
+            if let Some(addr) = self.mapper.ppu_map_write(addr) {
+                self.chr_memory[addr] = data;
+            } else {
+                log::warn!(
+                    "attempted to write on CHR memory at {}, but this is not supported by this mapper",
+                    addr
+                );
+            }
         } else {
             log::warn!(
-                "attempted to write on CHR memory at {}, but this is not supported by this mapper",
+                "attempted to write on CHR memory at {}, but this ROM uses CHR ROM",
                 addr
             );
-        }
+        };
     }
 
     pub fn take_irq_set_state(&mut self) -> bool {
