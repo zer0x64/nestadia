@@ -45,7 +45,6 @@ impl Mapper for Mapper001 {
             _ => {
                 if (self.control_register & PRG_MODE_MASK) > 1 {
                     // 16K PRG mode
-                    // }
                     match addr {
                         0x8000 ..=0xBFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_lo as usize) * 0x4000 + (addr & 0x3FFF) as usize),
                         0xC000 ..=0xFFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_hi as usize) * 0x4000 + (addr & 0x3FFF) as usize),
