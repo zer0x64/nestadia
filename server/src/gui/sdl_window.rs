@@ -121,7 +121,7 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
                 if let Some(frame) = emulation_state.emulator.clock() {
                     break frame;
                 }
-                /*else if emulation_state.emulator.cpu().pc == 0xf0ca {
+                /*else if emulation_state.emulator.cpu().pc == 0xc164 {
                     emulation_state.is_running = false;
                     break &[0u8; 256 * 240];
                 }*/

@@ -104,7 +104,7 @@ impl CpuBus<'_> {
         if *self.controller1_state {
             *self.controller1 & 0x80 >> 7
         } else {
-            let data = *self.controller1_snapshot & 0x80 >> 7;
+            let data = (*self.controller1_snapshot & 0x80) >> 7;
             *self.controller1_snapshot <<= 1;
             data
         }
@@ -119,7 +119,7 @@ impl CpuBus<'_> {
         if *self.controller2_state {
             *self.controller2 & 0x80 >> 7
         } else {
-            let data = *self.controller2_snapshot & 0x80 >> 7;
+            let data = (*self.controller2_snapshot & 0x80) >> 7;
             *self.controller2_snapshot <<= 1;
             data
         }

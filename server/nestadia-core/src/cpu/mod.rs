@@ -1428,6 +1428,7 @@ impl Cpu {
         self.status_register.set(StatusRegister::U, false);
 
         self.pc = u16::from(self.stack_pop(bus)) | (u16::from(self.stack_pop(bus)) << 8);
+        self.pc = self.pc.wrapping_add(1);
     }
 
     fn inst_rts(&mut self, bus: &mut CpuBus<'_>) {
