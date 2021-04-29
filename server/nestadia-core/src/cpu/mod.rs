@@ -130,9 +130,9 @@ impl Cpu {
             };
             self.pc = self.pc.wrapping_add(1);
 
-            log.push_str(&format!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", self.a, self.x, self.y, self.status_register.bits, self.st));
+            log.push_str(&format!(" {:?} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", opcode, self.a, self.x, self.y, self.status_register.bits, self.st));
 
-            println!("{}", log);
+            print!("{}\r\n", log);
 
             match &opcode {
                 Opcode::Brk => {
@@ -1002,7 +1002,7 @@ impl Cpu {
         let ptr = (u16::from(bus.read(self.pc.wrapping_sub(2))))
             | (u16::from(bus.read(self.pc.wrapping_sub(1))) << 8);
 
-        if ptr | 0x00ff == 0x00ff {
+        if ptr & 0x00ff == 0x00ff {
             // Simutate undefinied behavior at page end. The page is not updated.
             u16::from(bus.read(ptr)) | (u16::from(bus.read(ptr & 0xff00)) << 8)
         } else {
@@ -1125,9 +1125,9 @@ impl Cpu {
 
         self.status_register.set(StatusRegister::Z, result == 0);
         self.status_register
-            .set(StatusRegister::V, result & (1 << 6) > 0);
+            .set(StatusRegister::V, op & (1 << 6) > 0);
         self.status_register
-            .set(StatusRegister::N, result & (1 << 7) > 0);
+            .set(StatusRegister::N, op & (1 << 7) > 0);
     }
 
     fn inst_bmi(&mut self, offset: u16) {
@@ -1317,7 +1317,7 @@ impl Cpu {
         let z = self.a == 0;
         self.status_register.set(StatusRegister::Z, z);
 
-        let n = self.a & (1 << 7) > 0;
+        let n = self.a & (1 >> 7) > 0;
         self.status_register.set(StatusRegister::N, n);
     }
 
@@ -1327,7 +1327,7 @@ impl Cpu {
         let z = self.x == 0;
         self.status_register.set(StatusRegister::Z, z);
 
-        let n = self.x & (1 << 7) > 0;
+        let n = self.x & (1 >> 7) > 0;
         self.status_register.set(StatusRegister::N, n);
     }
 
@@ -1431,11 +1431,10 @@ impl Cpu {
     fn inst_rti(&mut self, bus: &mut CpuBus<'_>) {
         self.status_register = StatusRegister::from_bits_truncate(self.stack_pop(bus));
 
-        self.status_register.set(StatusRegister::B, false);
-        self.status_register.set(StatusRegister::U, false);
+        self.status_register.remove(StatusRegister::B);
+        self.status_register.insert(StatusRegister::U);
 
         self.pc = u16::from(self.stack_pop(bus)) | (u16::from(self.stack_pop(bus)) << 8);
-        //self.pc = self.pc.wrapping_add(1);
     }
 
     fn inst_rts(&mut self, bus: &mut CpuBus<'_>) {
