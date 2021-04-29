@@ -76,15 +76,15 @@ impl Cartridge {
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
-            1 => Box::new(Mapper001::new(header.prg_size)),
+            1 => Box::new(Mapper001::new(header.prg_size, header.chr_size == 0)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
             66 => Box::new(Mapper066::new(mirroring)),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
-        let prg_memory_len = PRG_BANK_SIZE * (header.prg_size as usize);
         let chr_memory_len = CHR_BANK_SIZE * (header.chr_size as usize);
+        let prg_memory_len = PRG_BANK_SIZE * (header.prg_size as usize);
 
         let prg_start = if header.flags6.contains(Flags6::TRAINER) {
             512 + 16
@@ -108,10 +108,12 @@ impl Cartridge {
         assert_eq!(prg_memory.len(), prg_memory_len);
 
         // CHR memory
-        let chr_start = prg_end;
-        let chr_end = prg_end + chr_memory_len;
-        let chr_memory = rom[chr_start..chr_end].to_vec();
-        assert_eq!(chr_memory.len(), chr_memory_len);
+        // Don't parse if it's RAM
+        let chr_memory = if header.chr_size != 0 {
+            let chr_start = prg_end;
+            let chr_end = prg_end + chr_memory_len;
+            rom[chr_start..chr_end].to_vec()
+        } else { vec![0u8; CHR_BANK_SIZE] };
 
         Ok(Cartridge {
             prg_memory,
