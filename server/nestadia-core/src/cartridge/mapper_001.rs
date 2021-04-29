@@ -11,7 +11,6 @@ pub struct Mapper001 {
     chr_bank_selector_8: u8,
     chr_bank_selector_4_lo: u8,
     chr_bank_selector_4_hi: u8,
-    chr_rom: bool,
     load_register: u8,
     load_register_count: u8,
     control_register: u8,
@@ -19,7 +18,7 @@ pub struct Mapper001 {
 }
 
 impl Mapper001 {
-    pub fn new(prg_banks: u8, chr_rom: bool) -> Self {
+    pub fn new(prg_banks: u8) -> Self {
         Self {
             prg_banks,
             prg_bank_selector_32: 0,
@@ -28,7 +27,6 @@ impl Mapper001 {
             chr_bank_selector_8: 0,
             chr_bank_selector_4_lo: 0,
             chr_bank_selector_4_hi: 0,
-            chr_rom,
             load_register: 0,
             load_register_count: 0,
             control_register: 0x0C,
@@ -153,12 +151,7 @@ impl Mapper for Mapper001 {
     }
 
     fn ppu_map_write(&self, addr: u16) -> Option<usize> {
-        if self.chr_rom {
-            Some((self.chr_bank_selector_8 as usize) * 0x2000 + (addr & 0x1FFF) as usize)
-        }
-        else {
-            None
-        }
+        Some((self.chr_bank_selector_8 as usize) * 0x2000 + (addr & 0x1FFF) as usize)
     }
 
     fn mirroring(&self) -> Mirroring {

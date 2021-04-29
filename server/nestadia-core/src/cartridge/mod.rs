@@ -52,6 +52,7 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
+    chr_ram: bool,
     prg_memory: Vec<u8>, // program ROM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
     mapper: Box<dyn Mapper>,
@@ -76,7 +77,7 @@ impl Cartridge {
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
-            1 => Box::new(Mapper001::new(header.prg_size, header.chr_size == 0)),
+            1 => Box::new(Mapper001::new(header.prg_size)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
             66 => Box::new(Mapper066::new(mirroring)),
@@ -109,13 +110,17 @@ impl Cartridge {
 
         // CHR memory
         // Don't parse if it's RAM
-        let chr_memory = if header.chr_size != 0 {
+        let chr_ram = header.chr_size == 0;
+        let chr_memory = if !chr_ram {
             let chr_start = prg_end;
             let chr_end = prg_end + chr_memory_len;
             rom[chr_start..chr_end].to_vec()
-        } else { vec![0u8; CHR_BANK_SIZE] };
+        } else {
+            vec![0u8; CHR_BANK_SIZE]
+        };
 
         Ok(Cartridge {
+            chr_ram,
             prg_memory,
             chr_memory,
             mapper,
@@ -147,14 +152,21 @@ impl Cartridge {
     }
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
-        if let Some(addr) = self.mapper.ppu_map_write(addr) {
-            self.chr_memory[addr] = data;
+        if self.chr_ram {
+            if let Some(addr) = self.mapper.ppu_map_write(addr) {
+                self.chr_memory[addr] = data;
+            } else {
+                log::warn!(
+                    "attempted to write on CHR memory at {}, but this is not supported by this mapper",
+                    addr
+                );
+            }
         } else {
             log::warn!(
-                "attempted to write on CHR memory at {}, but this is not supported by this mapper",
+                "attempted to write on CHR memory at {}, but this ROM uses CHR ROM",
                 addr
             );
-        }
+        };
     }
 
     #[cfg(feature = "debugger")]

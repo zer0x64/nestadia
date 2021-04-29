@@ -31,8 +31,8 @@ impl Mapper for Mapper003 {
         (self.chr_bank_selector as usize) * 0x2000 + addr as usize
     }
 
-    fn ppu_map_write(&self, _addr: u16) -> Option<usize> {
-        None
+    fn ppu_map_write(&self, addr: u16) -> Option<usize> {
+        Some((self.chr_bank_selector as usize) * 0x2000 + addr as usize)
     }
 
     fn mirroring(&self) -> Mirroring {
