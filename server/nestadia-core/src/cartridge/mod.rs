@@ -50,6 +50,10 @@ trait Mapper: Send + Sync {
     fn ppu_map_read(&self, addr: u16) -> usize;
     fn ppu_map_write(&self, addr: u16) -> Option<usize>;
     fn mirroring(&self) -> Mirroring;
+
+    fn irq_state(&self) -> bool { false }
+    fn irq_clear(&mut self) {}
+    fn irq_scanline(&mut self) {}
 }
 
 pub struct Cartridge {

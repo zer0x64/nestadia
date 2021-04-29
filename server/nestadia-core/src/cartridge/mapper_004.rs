@@ -2,23 +2,39 @@ use super::{Mapper, Mirroring, CartridgeReadTarget};
 use std::intrinsics::{unaligned_volatile_load, unchecked_rem};
 
 pub struct Mapper004 {
+    prg_banks: u8,
     prg_bank_selector: [u8; 4],
     chr_bank_selector: [u8; 8],
-    prg_banks: u8,
     mirroring: Mirroring,
+    prg_mode: bool,
+    chr_inverson: bool,
     register: [u8; 8],
+    target_register: u8,
     ram_data: Vec<u8>,
+
+    irq_enabled: bool,
+    irq_active: bool,
+    irq_counter: u8,
+    irq_reload: u8,
 }
 
 impl Mapper004 {
     pub fn new(prg_banks: u8, mirroring: Mirroring) -> Self {
         Self {
-            prg_bank_selector: [0u8, 0u8, 0u8, prg_banks - 1],
-            chr_bank_selector: [0u8; 8],
             prg_banks,
+            prg_bank_selector: [0u8; 4],
+            chr_bank_selector: [0u8; 8],
             mirroring,
+            prg_mode: false,
+            chr_inverson: false,
             register: [0u8; 8],
+            target_register: 0,
             ram_data: vec![0u8; 0x8000],
+
+            irq_active: false,
+            irq_enabled: false,
+            irq_counter: 0,
+            irq_reload: 0,
         }
     }
 }
@@ -57,29 +73,76 @@ impl Mapper for Mapper004 {
             0x8000 ..=0x9FFF => {
                 if (addr & 0x01) == 0 {
                     // Bank select
+                    self.target_register = data & 0x03;
+                    self.prg_mode = (data & 0x40) == 0x40;
+                    self.chr_inverson = (data & 0x80) == 0x80;
                 } else {
                     // Bank data
+                    self.register[self.target_register] = data;
+
+                    // Update bank selectors
+                    if self.prg_mode {
+                        self.prg_bank_selector[0] = self.prg_banks - 2;
+                        self.prg_bank_selector[2] = self.register[6] & 0x3F;
+                    } else {
+                        self.prg_bank_selector[0] = self.register[6] & 0x3F;
+                        self.prg_bank_selector[2] = self.prg_banks - 2;
+                    }
+                    self.prg_bank_selector[1] = self.register[7] & 0x3F;
+                    self.prg_bank_selector[3] = self.prg_banks -1;
+
+                    if self.chr_inverson {
+                        self.chr_bank_selector[0] = self.register[2];
+                        self.chr_bank_selector[1] = self.register[3];
+                        self.chr_bank_selector[2] = self.register[4];
+                        self.chr_bank_selector[3] = self.register[5];
+                        self.chr_bank_selector[4] = self.register[0] & 0xFE;
+                        self.chr_bank_selector[5] = self.register[0] + 1;
+                        self.chr_bank_selector[6] = self.register[1] & 0xFE;
+                        self.chr_bank_selector[7] = self.register[1] + 1;
+                    } else {
+                        self.chr_bank_selector[0] = self.register[0] & 0xFE;
+                        self.chr_bank_selector[1] = self.register[0] + 1;
+                        self.chr_bank_selector[2] = self.register[1] & 0xFE;
+                        self.chr_bank_selector[3] = self.register[1] + 1;
+                        self.chr_bank_selector[4] = self.register[2];
+                        self.chr_bank_selector[5] = self.register[3];
+                        self.chr_bank_selector[6] = self.register[4];
+                        self.chr_bank_selector[7] = self.register[5];
+
+                    }
                 }
             },
             0xA000 ..=0xBFFF => {
                 if (addr & 0x01) == 0 {
                     // Mirroring
+                    self.mirroring = match data & 0x01 {
+                        0 => Mirroring::Vertical,
+                        1 => Mirroring::Horizontal,
+                        _ => unreachable!(),
+                    }
                 } else {
                     // PRG RAM protect
+                    // Not needed
                 }
             },
             0xC000 ..=0xDFFF => {
                 if (addr & 0x01) == 0 {
                     // IRQ latch
+                    self.irq_reload = data;
                 } else {
                     // IRQ reload
+                    self.irq_counter = 0;
                 }
             },
             0xE000 ..=0xFFFF => {
                 if (addr & 0x01) == 0 {
                     // IRQ disable
+                    self.irq_enabled = false;
+                    self.irq_active = false;
                 } else {
                     // IRQ enable
+                    self.irq_enabled = true;
                 }
             }
             _ => unreachable!(),
@@ -123,5 +186,25 @@ impl Mapper for Mapper004 {
 
     fn mirroring(&self) -> Mirroring {
         self.mirroring
+    }
+
+    fn irq_state(&self) -> bool {
+        self.irq_active
+    }
+
+    fn irq_clear(&mut self) {
+        self.irq_active = false;
+    }
+
+    fn irq_scanline(&mut self) {
+        if self.irq_counter == 0 {
+            self.irq_counter = self.irq_reload;
+        } else {
+            self.irq_counter -= 1;
+        }
+
+        if self.irq_counter == 0 && self.irq_enabled {
+            self.irq_active = true;
+        }
     }
 }
