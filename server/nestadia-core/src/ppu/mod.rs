@@ -168,6 +168,7 @@ impl Ppu {
         }
     }
 
+    #[track_caller]
     pub fn read(&mut self, bus: &mut PpuBus<'_>, addr: u16) -> u8 {
         let addr = addr & 0x07; // mirror
 
@@ -175,17 +176,22 @@ impl Ppu {
             // Not readable addresses
             0 | 1 | 3 | 5 | 6 => {
                 // Control, mask, OAM address, scroll, PPU Address
-                log::warn!("Attempted to read write-only PPU address: {:#X}", addr);
+                log::warn!("Attempted to read write-only PPU address: {:#X} (culprit at {})", addr, std::panic::Location::caller());
                 0
             }
 
             // Readable addresses
             2 => {
                 // Read Status
-                let snapshot = self.status_reg.read();
+
+                // 3 top bits are the PPU status, least significant bits are noise from PPU bus.
+                let snapshot = self.status_reg.read() | bus.noise() & 0x1F;
+
+                // Reading the Status register clear bit 7 and also the address latch used by PPUSCROLL and PPUADDR.
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
                 self.addr_reg.reset_latch();
                 self.scroll_reg.reset_latch();
+
                 snapshot
             }
             4 => {
