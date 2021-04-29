@@ -40,14 +40,14 @@ impl std::error::Error for RomParserError {}
 
 enum CartridgeReadTarget {
     PrgRam(u8),
-    PrgRom(u16),
+    PrgRom(usize),
 }
 
 trait Mapper: Send + Sync {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget;
     fn cpu_map_write(&mut self, addr: u16, data: u8);
-    fn ppu_map_read(&self, addr: u16) -> u16;
-    fn ppu_map_write(&self, addr: u16) -> Option<u16>;
+    fn ppu_map_read(&self, addr: u16) -> usize;
+    fn ppu_map_write(&self, addr: u16) -> Option<usize>;
     fn mirroring(&self) -> Mirroring;
 }
 
@@ -122,7 +122,7 @@ impl Cartridge {
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {
         match self.mapper.cpu_map_read(addr) {
-            CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr as usize],
+            CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr],
             CartridgeReadTarget::PrgRam(data) => data,
         }
     }
@@ -132,9 +132,9 @@ impl Cartridge {
     }
 
     pub fn read_chr_mem(&self, addr: u16) -> u8 {
-        let addr = self.mapper.ppu_map_read(addr) as usize;
+        let addr = self.mapper.ppu_map_read(addr);
         if addr < self.chr_memory.len() {
-            self.chr_memory[addr as usize]
+            self.chr_memory[addr]
         } else {
             0
         }
@@ -142,7 +142,7 @@ impl Cartridge {
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
         if let Some(addr) = self.mapper.ppu_map_write(addr) {
-            self.chr_memory[addr as usize] = data;
+            self.chr_memory[addr] = data;
         } else {
             log::warn!(
                 "attempted to write on CHR memory at {}, but this is not supported by this mapper",
