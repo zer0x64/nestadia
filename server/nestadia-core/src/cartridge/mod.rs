@@ -158,6 +158,16 @@ impl Cartridge {
         }
     }
 
+    pub fn take_irq_set_state(&mut self) -> bool {
+        let state = self.mapper.irq_state();
+        self.mapper.irq_clear();
+        state
+    }
+
+    pub fn irq_scanline(&mut self) {
+        self.mapper.irq_scanline()
+    }
+
     #[cfg(feature = "debugger")]
     pub fn disassemble(&self) -> Vec<(u16, String)> {
         let mut disas1 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x4000);

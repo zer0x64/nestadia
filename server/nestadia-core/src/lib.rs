@@ -79,6 +79,11 @@ impl Emulator {
                 let mut cpu_bus = borrow_cpu_bus!(self);
                 self.cpu.nmi(&mut cpu_bus);
                 self.cpu.clock(&mut cpu_bus);
+            } else if self.cpu.cycles == 0 && self.cartridge.take_irq_set_state() {
+                // IRQ interrupt
+                let mut cpu_bus = borrow_cpu_bus!(self);
+                self.cpu.irq(&mut cpu_bus);
+                self.cpu.clock(&mut cpu_bus);
             } else {
                 let mut cpu_bus = borrow_cpu_bus!(self);
                 self.cpu.clock(&mut cpu_bus);

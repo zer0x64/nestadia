@@ -1,5 +1,4 @@
 use super::{Mapper, Mirroring, CartridgeReadTarget};
-use std::intrinsics::{unaligned_volatile_load, unchecked_rem};
 
 pub struct Mapper004 {
     prg_banks: u8,
@@ -59,7 +58,10 @@ impl Mapper for Mapper004 {
             0xE000 ..=0xFFFF => {
                 CartridgeReadTarget::PrgRom((self.prg_bank_selector[3] as usize) * 0x2000 + (addr & 0x1FFF) as usize)
             }
-            _ => unreachable!(),
+            _ => {
+                log::warn!("Attempted to read address w/o known mapping {:#06x}", addr);
+                CartridgeReadTarget::PrgRom(0)
+            },
         }
     }
 
@@ -78,7 +80,7 @@ impl Mapper for Mapper004 {
                     self.chr_inverson = (data & 0x80) == 0x80;
                 } else {
                     // Bank data
-                    self.register[self.target_register] = data;
+                    self.register[self.target_register as usize] = data;
 
                     // Update bank selectors
                     if self.prg_mode {
@@ -145,7 +147,7 @@ impl Mapper for Mapper004 {
                     self.irq_enabled = true;
                 }
             }
-            _ => unreachable!(),
+            _ => log::warn!("Attempted to write to address w/o known mapping: {:#06x}", addr),
         }
 
     }

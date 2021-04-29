@@ -212,4 +212,8 @@ impl PpuBus<'_> {
             Mirroring::OneScreenUpper => todo!(),
         }
     }
+
+    pub fn irq_scanline(&mut self) {
+        self.cartridge.irq_scanline();
+    }
 }
