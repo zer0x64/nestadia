@@ -1,5 +1,6 @@
 mod ines_header;
 mod mapper_000;
+mod mapper_001;
 mod mapper_002;
 mod mapper_003;
 mod mapper_066;
@@ -11,12 +12,15 @@ use self::mapper_000::Mapper000;
 use self::mapper_002::Mapper002;
 use self::mapper_003::Mapper003;
 use self::mapper_066::Mapper066;
+use crate::cartridge::mapper_001::Mapper001;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Mirroring {
     Horizontal,
     Vertical,
     FourScreen,
+    OneScreenLower,
+    OneScreenUpper,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -34,11 +38,17 @@ impl std::fmt::Display for RomParserError {
 
 impl std::error::Error for RomParserError {}
 
+enum CartridgeReadTarget {
+    PrgRam(u8),
+    PrgRom(u16),
+}
+
 trait Mapper: Send + Sync {
-    fn cpu_map_read(&self, addr: u16) -> u16;
+    fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget;
     fn cpu_map_write(&mut self, addr: u16, data: u8);
     fn ppu_map_read(&self, addr: u16) -> u16;
     fn ppu_map_write(&self, addr: u16) -> Option<u16>;
+    fn mirroring(&self) -> Mirroring;
 }
 
 pub struct Cartridge {
@@ -57,11 +67,21 @@ impl Cartridge {
 
         log::info!("ROM info: {:?}", &header);
 
+        let mut mirroring: Mirroring;
+        if header.flags6.contains(Flags6::FOUR_SCREEN) {
+            mirroring = Mirroring::FourScreen;
+        } else if header.flags6.contains(Flags6::MIRRORING) {
+            mirroring = Mirroring::Vertical;
+        } else {
+            mirroring = Mirroring::Horizontal;
+        }
+
         let mapper: Box<dyn Mapper> = match header.mapper_id {
-            0 => Box::new(Mapper000::new(header.prg_size)),
-            2 => Box::new(Mapper002::new(header.prg_size)),
-            3 => Box::new(Mapper003::new(header.prg_size)),
-            66 => Box::new(Mapper066::new()),
+            0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
+            1 => Box::new(Mapper001::new(header.prg_size)),
+            2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
+            3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
+            66 => Box::new(Mapper066::new(mirroring)),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
@@ -100,18 +120,15 @@ impl Cartridge {
     }
 
     pub fn mirroring(&self) -> Mirroring {
-        if self.header.flags6.contains(Flags6::FOUR_SCREEN) {
-            Mirroring::FourScreen
-        } else if self.header.flags6.contains(Flags6::MIRRORING) {
-            Mirroring::Vertical
-        } else {
-            Mirroring::Horizontal
-        }
+        self.mapper.mirroring()
     }
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {
-        let mapped_addr = self.mapper.cpu_map_read(addr);
-        self.prg_memory[mapped_addr as usize]
+        let addr = self.mapper.cpu_map_read(addr);
+        match addr {
+            CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr as usize],
+            CartridgeReadTarget::PrgRam(data) => data,
+        }
     }
 
     pub fn write_prg_mem(&mut self, addr: u16, data: u8) {
