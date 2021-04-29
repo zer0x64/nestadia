@@ -12,7 +12,6 @@ use crate::ExecutionMode;
 const STACK_BASE: u16 = 0x0100;
 const PC_START: u16 = 0xFFFC;
 const IRQ_HANDLER: u16 = 0xFFFE;
-#[allow(unused_variables)] // FIXME
 const NMI_HANDLER: u16 = 0xFFFA;
 
 #[cfg(not(feature = "true-flags"))]
@@ -77,7 +76,6 @@ impl Cpu {
         self.pc = u16::from(bus.read(PC_START)) | (u16::from(bus.read(PC_START + 1)) << 8);
     }
 
-    #[allow(dead_code)] // FIXME
     pub fn irq(&mut self, bus: &mut CpuBus<'_>) {
         if !self.status_register.contains(StatusRegister::I) {
             // Push current PC
@@ -113,7 +111,7 @@ impl Cpu {
         self.pc = u16::from(bus.read(NMI_HANDLER))
             | (u16::from(bus.read(NMI_HANDLER.wrapping_add(1))) << 8);
 
-        self.cycles = 7;
+        self.cycles = 8;
     }
 
     pub fn clock(&mut self, bus: &mut CpuBus<'_>) {
@@ -1149,11 +1147,10 @@ impl Cpu {
         self.stack_push(bus, (self.pc & 0xff) as u8);
 
         // Push status register
-        self.status_register.set(StatusRegister::B, true);
-        self.status_register.set(StatusRegister::U, true);
-        self.stack_push(bus, self.status_register.bits());
-
-        self.status_register.set(StatusRegister::I, true);
+        self.status_register.insert(StatusRegister::B);
+        self.stack_push(bus, self.status_register.bits);
+        self.status_register.remove(StatusRegister::B);
+        self.status_register.insert(StatusRegister::I);
 
         self.pc = u16::from(bus.read(IRQ_HANDLER))
             | (u16::from(bus.read(IRQ_HANDLER.wrapping_add(1))) << 8);
