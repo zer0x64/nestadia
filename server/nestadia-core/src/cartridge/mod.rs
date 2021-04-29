@@ -94,7 +94,11 @@ impl Cartridge {
 
         let expected_rom_size = prg_start + prg_memory_len + chr_memory_len;
         if rom.len() < expected_rom_size {
-            println!("Invalid ROM size: expected {} bytes of memory, but ROM has {}", expected_rom_size, rom.len());
+            println!(
+                "Invalid ROM size: expected {} bytes of memory, but ROM has {}",
+                expected_rom_size,
+                rom.len()
+            );
             return Err(RomParserError::TooShort);
         }
 

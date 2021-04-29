@@ -1,4 +1,4 @@
-use super::{Mapper, CartridgeReadTarget, Mirroring};
+use super::{CartridgeReadTarget, Mapper, Mirroring};
 
 pub struct Mapper003 {
     chr_bank_selector: u8,

@@ -1,4 +1,4 @@
-use super::{Mapper, CartridgeReadTarget, Mirroring};
+use super::{CartridgeReadTarget, Mapper, Mirroring};
 
 pub struct Mapper000 {
     prg_banks: u8,

@@ -1,4 +1,4 @@
-use super::{Mapper, CartridgeReadTarget, Mirroring};
+use super::{CartridgeReadTarget, Mapper, Mirroring};
 
 pub struct Mapper066 {
     prg_bank_selector: u8,
@@ -11,14 +11,16 @@ impl Mapper066 {
         Self {
             prg_bank_selector: 0,
             chr_bank_selector: 0,
-            mirroring
+            mirroring,
         }
     }
 }
 
 impl Mapper for Mapper066 {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
-        CartridgeReadTarget::PrgRom((self.prg_bank_selector as usize) * 0x8000 + (addr & 0x7FFF) as usize)
+        CartridgeReadTarget::PrgRom(
+            (self.prg_bank_selector as usize) * 0x8000 + (addr & 0x7FFF) as usize,
+        )
     }
 
     fn cpu_map_write(&mut self, _addr: u16, data: u8) {

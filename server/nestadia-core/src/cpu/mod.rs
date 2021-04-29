@@ -120,7 +120,11 @@ impl Cpu {
             let opcode = match Opcode::try_from(bus.read(self.pc)) {
                 Ok(o) => o,
                 Err(_) => {
-                    log::warn!("Unknown opcode {} at pc {:#06x}, treating as a NOP...", bus.read(self.pc), self.pc);
+                    log::warn!(
+                        "Unknown opcode {} at pc {:#06x}, treating as a NOP...",
+                        bus.read(self.pc),
+                        self.pc
+                    );
                     Opcode::Nop
                 }
             };

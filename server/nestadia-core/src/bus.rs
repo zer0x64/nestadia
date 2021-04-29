@@ -208,8 +208,20 @@ impl PpuBus<'_> {
                 _ => unreachable!(),
             },
             Mirroring::FourScreen => idx, // FIXME/TODO: this will probably cause an index out of range explosion with current code
-            Mirroring::OneScreenLower => todo!(),
-            Mirroring::OneScreenUpper => todo!(),
+            Mirroring::OneScreenLower => match idx {
+                0..=1023 => idx,
+                1024..=2047 => idx - 1024,
+                2048..=3071 => idx - 2048,
+                3072..=4095 => idx - 3072,
+                _ => unreachable!(),
+            },
+            Mirroring::OneScreenUpper => match idx {
+                0..=1023 => idx + 1024,
+                1024..=2047 => idx,
+                2048..=3071 => idx - 1024,
+                3072..=4095 => idx - 2048,
+                _ => unreachable!(),
+            },
         }
     }
 }
