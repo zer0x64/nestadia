@@ -21,7 +21,7 @@ impl Mapper004 {
     pub fn new(prg_banks: u8, mirroring: Mirroring) -> Self {
         Self {
             prg_banks,
-            prg_bank_selector: [0u8; 4],
+            prg_bank_selector: [0u8, 0u8, 0u8, prg_banks - 1],
             chr_bank_selector: [0u8; 8],
             mirroring,
             prg_mode: false,
