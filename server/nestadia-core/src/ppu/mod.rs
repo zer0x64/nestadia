@@ -360,9 +360,9 @@ impl Ppu {
                 false
             };
             let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                true
-            } else {
                 false
+            } else {
+                true
             };
             let palette_idx = self.oam_data[i + 2] & 0b11;
             let sprite_palette = self.sprite_palette(palette_idx);
