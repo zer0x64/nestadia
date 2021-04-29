@@ -178,7 +178,10 @@ impl Mapper for Mapper004 {
             0x1C00 ..=0x1FFF => {
                 (self.chr_bank_selector[7] as usize) * 0x0400 + (addr & 0x03FF) as usize
             },
-            _ => unreachable!(),
+            _ => {
+                log::warn!("Attempted to read CHR address w/o known mapping: {:#06x}", addr);
+                0 as usize
+            },
         }
     }
 
