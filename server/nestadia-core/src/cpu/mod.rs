@@ -743,7 +743,7 @@ impl Cpu {
                     self.inst_cpy(op);
                 }
                 Opcode::CmpZp => {
-                    let addr = self.am_izx(bus);
+                    let addr = self.am_zp(bus);
                     let op = bus.read(addr);
                     self.inst_cmp(op);
                 }
