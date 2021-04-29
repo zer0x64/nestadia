@@ -17,7 +17,7 @@ impl Mapper000 {
 impl Mapper for Mapper000 {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
-        CartridgeReadTarget::PrgRom(addr & mask)
+        CartridgeReadTarget::PrgRom((addr & mask) as usize)
     }
 
     fn cpu_map_write(&mut self, addr: u16, data: u8) {
@@ -27,11 +27,11 @@ impl Mapper for Mapper000 {
         );
     }
 
-    fn ppu_map_read(&self, addr: u16) -> u16 {
-        addr
+    fn ppu_map_read(&self, addr: u16) -> usize {
+        addr as usize
     }
 
-    fn ppu_map_write(&self, _addr: u16) -> Option<u16> {
+    fn ppu_map_write(&self, _addr: u16) -> Option<usize> {
         None
     }
 

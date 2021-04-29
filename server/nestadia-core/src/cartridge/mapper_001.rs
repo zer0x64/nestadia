@@ -23,13 +23,13 @@ impl Mapper001 {
             prg_banks,
             prg_bank_selector_32: 0,
             prg_bank_selector_16_lo: 0,
-            prg_bank_selector_16_hi: 0,
+            prg_bank_selector_16_hi: prg_banks -1,
             chr_bank_selector_8: 0,
             chr_bank_selector_4_lo: 0,
             chr_bank_selector_4_hi: 0,
             load_register: 0,
             load_register_count: 0,
-            control_register: 0,
+            control_register: 0x0C,
             ram_data: vec![0u8; 0x8000],
         }
     }
@@ -45,13 +45,15 @@ impl Mapper for Mapper001 {
             _ => {
                 if (self.control_register & PRG_MODE_MASK) > 1 {
                     // 16K PRG mode
+                    // }
                     match addr {
-                        0x8000 ..=0xBFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_lo as u16) * 0x4000 + (addr & 0x3FFF)),
-                        _ => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_hi as u16) * 0x4000 + (addr & 0x3FFF)),
+                        0x8000 ..=0xBFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_lo as usize) * 0x4000 + (addr & 0x3FFF) as usize),
+                        0xC000 ..=0xFFFF => CartridgeReadTarget::PrgRom((self.prg_bank_selector_16_hi as usize) * 0x4000 + (addr & 0x3FFF) as usize),
+                        _ => unreachable!(),
                     }
                 } else {
                     // 32K PRG mode
-                    CartridgeReadTarget::PrgRom((self.prg_bank_selector_32 as u16) * 0x8000 + (addr & 0x7FFF))
+                    CartridgeReadTarget::PrgRom((self.prg_bank_selector_32 as usize) * 0x8000 + (addr & 0x7FFF) as usize)
                 }
             },
         }
@@ -61,6 +63,7 @@ impl Mapper for Mapper001 {
         if (0x6000 ..=0x7FFF).contains(&addr) {
             // Write to RAM
             self.ram_data[(addr & 0x1FFF) as usize] = data;    // TODO: windowed RAM?
+            return;
         }
 
         if (data & 0x80) == 0x80 {
@@ -68,7 +71,7 @@ impl Mapper for Mapper001 {
             self.load_register = 0;
             self.load_register_count = 0;
             self.control_register |= 0x0C;
-            return
+            return;
         }
 
         // Add new bit to load register
@@ -93,7 +96,7 @@ impl Mapper for Mapper001 {
                 0x4000 => { // CHR bank 1
                     self.chr_bank_selector_4_hi = self.load_register & 0x1F;
                 },
-                _ => { // PRG bank
+                0x6000 => { // PRG bank
                     match (self.control_register & PRG_MODE_MASK) >> 2 {
                         2 => { // 16K mode, fix low bank
                             self.prg_bank_selector_16_lo = 0;
@@ -108,6 +111,7 @@ impl Mapper for Mapper001 {
                         },
                     }
                 },
+                _ => unreachable!(),
             }
 
             // Reset load register
@@ -116,20 +120,20 @@ impl Mapper for Mapper001 {
         }
     }
 
-    fn ppu_map_read(&self, addr: u16) -> u16 {
+    fn ppu_map_read(&self, addr: u16) -> usize {
         if (self.control_register & CHR_MODE_MASK) != 0 {
             // 4K CHR mode
             match addr {
-                0x0000 ..=0x0FFF => (self.chr_bank_selector_4_lo as u16) * 0x1000 + (addr & 0x0FFF),
-                _ => (self.chr_bank_selector_4_hi as u16) * 0x1000 + (addr & 0x0FFF),
+                0x0000 ..=0x0FFF => (self.chr_bank_selector_4_lo as usize) * 0x1000 + (addr & 0x0FFF) as usize,
+                _ => (self.chr_bank_selector_4_hi as usize) * 0x1000 + (addr & 0x0FFF) as usize,
             }
         } else {
             // 8K CHR mode
-            (self.chr_bank_selector_8 as u16) * 0x2000 + (addr & 0x1FFF)
+            (self.chr_bank_selector_8 as usize) * 0x2000 + (addr & 0x1FFF) as usize
         }
     }
 
-    fn ppu_map_write(&self, _addr: u16) -> Option<u16> {
+    fn ppu_map_write(&self, _addr: u16) -> Option<usize> {
         None
     }
 
