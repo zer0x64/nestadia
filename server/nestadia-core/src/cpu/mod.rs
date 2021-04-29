@@ -74,7 +74,7 @@ impl Cpu {
         self.cycles = 8;
         self.status_register = StatusRegister::U | StatusRegister::I;
         self.pc = u16::from(bus.read(PC_START)) | (u16::from(bus.read(PC_START + 1)) << 8);
-        self.pc = 0xC000;
+        // self.pc = 0xC000;
     }
 
     pub fn irq(&mut self, bus: &mut CpuBus<'_>) {
@@ -117,9 +117,8 @@ impl Cpu {
 
     pub fn clock(&mut self, bus: &mut CpuBus<'_>) {
         if self.cycles == 0 {
-            let mut log = String::from(">>>>");
-
-            log.push_str(&format!(" {:04X}", self.pc));
+            // let mut log = String::from(">>>>");
+            // log.push_str(&format!(" {:04X}", self.pc));
 
             let opcode = match Opcode::try_from(bus.read(self.pc)) {
                 Ok(o) => o,
@@ -130,9 +129,8 @@ impl Cpu {
             };
             self.pc = self.pc.wrapping_add(1);
 
-            log.push_str(&format!(" {:?} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", opcode, self.a, self.x, self.y, self.status_register.bits, self.st));
-
-            print!("{}\r\n", log);
+            // log.push_str(&format!(" {:?} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", opcode, self.a, self.x, self.y, self.status_register.bits, self.st));
+            // print!("{}\r\n", log);
 
             match &opcode {
                 Opcode::Brk => {
