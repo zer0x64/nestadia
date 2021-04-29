@@ -117,9 +117,6 @@ impl Cpu {
 
     pub fn clock(&mut self, bus: &mut CpuBus<'_>) {
         if self.cycles == 0 {
-            // let mut log = String::from(">>>>");
-            // log.push_str(&format!(" {:04X}", self.pc));
-
             let opcode = match Opcode::try_from(bus.read(self.pc)) {
                 Ok(o) => o,
                 Err(_) => {
@@ -129,8 +126,16 @@ impl Cpu {
             };
             self.pc = self.pc.wrapping_add(1);
 
-            // log.push_str(&format!(" {:?} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", opcode, self.a, self.x, self.y, self.status_register.bits, self.st));
-            // print!("{}\r\n", log);
+            // print!(
+            //     ">>>> {:?} {:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}\r\n",
+            //     opcode,
+            //     self.pc.wrapping_sub(1),
+            //     self.a,
+            //     self.x,
+            //     self.y,
+            //     self.status_register.bits,
+            //     self.st
+            // );
 
             match &opcode {
                 Opcode::Brk => {
@@ -1315,7 +1320,7 @@ impl Cpu {
         let z = self.a == 0;
         self.status_register.set(StatusRegister::Z, z);
 
-        let n = self.a & (1 >> 7) > 0;
+        let n = self.a & 0x80 == 0x80;
         self.status_register.set(StatusRegister::N, n);
     }
 
@@ -1325,7 +1330,7 @@ impl Cpu {
         let z = self.x == 0;
         self.status_register.set(StatusRegister::Z, z);
 
-        let n = self.x & (1 >> 7) > 0;
+        let n = self.x & 0x80 == 0x80;
         self.status_register.set(StatusRegister::N, n);
     }
 
@@ -1402,7 +1407,7 @@ impl Cpu {
 
         self.status_register.set(StatusRegister::Z, result == 0);
         self.status_register
-            .set(StatusRegister::Z, result & (1 << 7) > 0);
+            .set(StatusRegister::N, result & (1 << 7) > 0);
 
         result
     }
@@ -1421,7 +1426,7 @@ impl Cpu {
 
         self.status_register.set(StatusRegister::Z, result == 0);
         self.status_register
-            .set(StatusRegister::Z, result & (1 << 7) > 0);
+            .set(StatusRegister::N, result & 0x80 == 0x80);
 
         result
     }
