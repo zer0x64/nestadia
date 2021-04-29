@@ -73,13 +73,13 @@ impl Mapper for Mapper001 {
 
         // Add new bit to load register
         self.load_register >>= 1;
-        self.load_register |= ((data & 0x01) << 4);
+        self.load_register |= (data & 0x01) << 4;
         self.load_register_count += 1;
 
         // Check if load register is full
         if self.load_register_count == 5 {
             // Check target of write using bit 14 and 13 from the address
-            match (addr & 0x6000) {
+            match addr & 0x6000 {
                 0x0000 => { // Control register
                     self.control_register = self.load_register & 0x1F;
                 },

@@ -52,7 +52,6 @@ trait Mapper: Send + Sync {
 }
 
 pub struct Cartridge {
-    header: INesHeader,
     prg_memory: Vec<u8>, // program ROM, used by CPU
     chr_memory: Vec<u8>, // character ROM, used by PPU
     mapper: Box<dyn Mapper>,
@@ -67,14 +66,13 @@ impl Cartridge {
 
         log::info!("ROM info: {:?}", &header);
 
-        let mut mirroring: Mirroring;
-        if header.flags6.contains(Flags6::FOUR_SCREEN) {
-            mirroring = Mirroring::FourScreen;
+        let mirroring = if header.flags6.contains(Flags6::FOUR_SCREEN) {
+            Mirroring::FourScreen
         } else if header.flags6.contains(Flags6::MIRRORING) {
-            mirroring = Mirroring::Vertical;
+            Mirroring::Vertical
         } else {
-            mirroring = Mirroring::Horizontal;
-        }
+            Mirroring::Horizontal
+        };
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
@@ -102,17 +100,16 @@ impl Cartridge {
 
         // PRG memory
         let prg_end = prg_start + prg_memory_len;
-        let prg_memory: Vec<u8> = rom[prg_start..prg_end].iter().copied().collect();
+        let prg_memory = rom[prg_start..prg_end].to_vec();
         assert_eq!(prg_memory.len(), prg_memory_len);
 
         // CHR memory
         let chr_start = prg_end;
-        let chr_end = chr_start + chr_memory_len;
-        let chr_memory: Vec<u8> = rom[chr_start..chr_end].iter().copied().collect();
+        let chr_end = prg_end + chr_memory_len;
+        let chr_memory = rom[chr_start..chr_end].to_vec();
         assert_eq!(chr_memory.len(), chr_memory_len);
 
         Ok(Cartridge {
-            header,
             prg_memory,
             chr_memory,
             mapper,
@@ -124,8 +121,7 @@ impl Cartridge {
     }
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {
-        let addr = self.mapper.cpu_map_read(addr);
-        match addr {
+        match self.mapper.cpu_map_read(addr) {
             CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr as usize],
             CartridgeReadTarget::PrgRam(data) => data,
         }

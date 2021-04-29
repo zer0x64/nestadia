@@ -72,8 +72,9 @@ impl Cpu {
         self.y = 0;
         self.st = 0xFD;
         self.cycles = 8;
-        self.status_register = StatusRegister::empty() | StatusRegister::U;
+        self.status_register = StatusRegister::U | StatusRegister::I;
         self.pc = u16::from(bus.read(PC_START)) | (u16::from(bus.read(PC_START + 1)) << 8);
+        self.pc = 0xC000;
     }
 
     pub fn irq(&mut self, bus: &mut CpuBus<'_>) {
@@ -116,6 +117,10 @@ impl Cpu {
 
     pub fn clock(&mut self, bus: &mut CpuBus<'_>) {
         if self.cycles == 0 {
+            let mut log = String::from(">>>>");
+
+            log.push_str(&format!(" {:04X}", self.pc));
+
             let opcode = match Opcode::try_from(bus.read(self.pc)) {
                 Ok(o) => o,
                 Err(_) => {
@@ -124,6 +129,10 @@ impl Cpu {
                 }
             };
             self.pc = self.pc.wrapping_add(1);
+
+            log.push_str(&format!(" A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", self.a, self.x, self.y, self.status_register.bits, self.st));
+
+            println!("{}", log);
 
             match &opcode {
                 Opcode::Brk => {
@@ -1063,7 +1072,8 @@ impl Cpu {
         self.status_register.set(StatusRegister::Z, r == 0);
 
         // Negative Flag
-        self.status_register.set(StatusRegister::N, r & 0x80 == 0x80);
+        self.status_register
+            .set(StatusRegister::N, r & 0x80 == 0x80);
 
         self.a = r;
     }
@@ -1358,13 +1368,10 @@ impl Cpu {
     }
 
     fn inst_php(&mut self, bus: &mut CpuBus<'_>) {
-        self.status_register.set(StatusRegister::B, true);
-        self.status_register.set(StatusRegister::U, true);
-
-        self.stack_push(bus, self.status_register.bits());
-
-        self.status_register.set(StatusRegister::B, false);
-        self.status_register.set(StatusRegister::U, false);
+        let mut status_register_copy = self.status_register;
+        status_register_copy.set(StatusRegister::B, true);
+        status_register_copy.set(StatusRegister::U, true);
+        self.stack_push(bus, status_register_copy.bits);
     }
 
     fn inst_pla(&mut self, bus: &mut CpuBus<'_>) {
@@ -1380,7 +1387,7 @@ impl Cpu {
     fn inst_plp(&mut self, bus: &mut CpuBus<'_>) {
         self.status_register = StatusRegister::from_bits_truncate(self.stack_pop(bus));
         self.status_register.set(StatusRegister::B, false);
-        self.status_register.set(StatusRegister::U, false);
+        self.status_register.set(StatusRegister::U, true);
     }
 
     fn inst_rol(&mut self, op: u8) -> u8 {

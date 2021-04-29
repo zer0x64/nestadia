@@ -17,7 +17,6 @@ impl Mapper000 {
 impl Mapper for Mapper000 {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
         let mask = if self.prg_banks > 1 { 0x7fff } else { 0x3fff };
-
         CartridgeReadTarget::PrgRom(addr & mask)
     }
 
