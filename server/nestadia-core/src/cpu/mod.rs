@@ -1023,7 +1023,7 @@ impl Cpu {
         let ptr = (u16::from(bus.read(self.pc.wrapping_sub(1)))) & 0x00ff;
 
         let address_no_offset =
-            (u16::from(bus.read(ptr))) | (u16::from(bus.read(ptr.wrapping_add(1))) << 8);
+            (u16::from(bus.read(ptr))) | (u16::from(bus.read(ptr.wrapping_add(1) & 0xff)) << 8);
 
         let address_with_offset = address_no_offset.wrapping_add(u16::from(self.y));
 
