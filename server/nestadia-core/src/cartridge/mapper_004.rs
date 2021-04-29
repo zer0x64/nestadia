@@ -47,12 +47,44 @@ impl Mapper for Mapper004 {
         }
     }
 
-    fn cpu_map_write(&mut self, _addr: u16, data: u8) {
-        if (0x6000 ..=0x7FFF).contains(&addr) {
-            // Write to RAM
-            self.ram_data[(addr & 0x1FFF) as usize] = data;
-            return;
+    fn cpu_map_write(&mut self, addr: u16, data: u8) {
+
+        match addr {
+            0x6000 ..=0x7FFF => {
+                // Write to RAM
+                self.ram_data[(addr & 0x1FFF) as usize] = data;
+            },
+            0x8000 ..=0x9FFF => {
+                if (addr & 0x01) == 0 {
+                    // Bank select
+                } else {
+                    // Bank data
+                }
+            },
+            0xA000 ..=0xBFFF => {
+                if (addr & 0x01) == 0 {
+                    // Mirroring
+                } else {
+                    // PRG RAM protect
+                }
+            },
+            0xC000 ..=0xDFFF => {
+                if (addr & 0x01) == 0 {
+                    // IRQ latch
+                } else {
+                    // IRQ reload
+                }
+            },
+            0xE000 ..=0xFFFF => {
+                if (addr & 0x01) == 0 {
+                    // IRQ disable
+                } else {
+                    // IRQ enable
+                }
+            }
+            _ => unreachable!(),
         }
+
     }
 
     fn ppu_map_read(&self, addr: u16) -> usize {
