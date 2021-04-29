@@ -89,6 +89,7 @@ impl CpuBus<'_> {
         self.ppu.write(&mut ppu_bus, addr, data);
     }
 
+    #[track_caller]
     pub fn read_ppu_register(&mut self, addr: u16) -> u8 {
         let mut ppu_bus = borrow_ppu_bus!(self);
         self.ppu.read(&mut ppu_bus, addr)
@@ -181,6 +182,11 @@ impl PpuBus<'_> {
 
     pub fn write_name_tables(&mut self, addr: u16, data: u8) {
         self.name_tables[self.mirror_name_tables_addr(addr) as usize] = data;
+    }
+
+    /// Returns the last PPU transaction.
+    pub fn noise(&self) -> u8 {
+        *self.last_data_on_ppu_bus
     }
 
     // http://wiki.nesdev.com/w/index.php/Mirroring#Nametable_Mirroring

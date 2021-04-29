@@ -1004,10 +1004,13 @@ impl Cpu {
     }
 
     fn am_izx(&mut self, bus: &mut CpuBus<'_>) -> u16 {
+        let target: u8 = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
-        let ptr = u16::from(bus.read(self.pc.wrapping_sub(1)).wrapping_add(self.x)) & 0x00ff;
-
-        (u16::from(bus.read(ptr))) | (u16::from(bus.read(ptr.wrapping_add(1) & 0x00ff)) << 8)
+        let ptr_lo = target.wrapping_add(self.x);
+        let ptr_hi = ptr_lo.wrapping_add(1);
+        let val_lo = bus.read(u16::from(ptr_lo));
+        let val_hi = bus.read(u16::from(ptr_hi));
+        u16::from(val_lo) | (u16::from(val_hi) << 8)
     }
 
     fn am_izy(&mut self, bus: &mut CpuBus<'_>) -> (u16, bool) {
@@ -1041,27 +1044,30 @@ impl Cpu {
     fn inst_adc(&mut self, op: u8) {
         #![allow(clippy::many_single_char_names)]
 
-        let mut result: u16 = (u16::from(self.a)).wrapping_add(u16::from(op));
+        let result = u16::from(self.a).wrapping_add(u16::from(op)).wrapping_add(
+            if self.status_register.contains(StatusRegister::C) {
+                1
+            } else {
+                0
+            },
+        );
 
-        if self.status_register.contains(StatusRegister::C) {
-            result = result.wrapping_add(1);
-        };
-
-        let c = result > 0xff;
-        self.status_register.set(StatusRegister::C, c);
+        // Carry Flag
+        self.status_register.set(StatusRegister::C, result > 0xff);
 
         let r = (result & 0xff) as u8;
 
+        // Signed Overflow
         let v = ((self.a ^ r) & !(self.a ^ op)) & 0x80 == 0x80;
         self.status_register.set(StatusRegister::V, v);
 
+        // Zero Flag
+        self.status_register.set(StatusRegister::Z, r == 0);
+
+        // Negative Flag
+        self.status_register.set(StatusRegister::N, r & 0x80 == 0x80);
+
         self.a = r;
-
-        let z = self.a == 0;
-        self.status_register.set(StatusRegister::Z, z);
-
-        let n = self.a & 0x80 == 0x80;
-        self.status_register.set(StatusRegister::N, n);
     }
 
     fn inst_and(&mut self, op: u8) {
@@ -1574,6 +1580,7 @@ impl CpuBus<'_> {
         };
     }
 
+    #[track_caller]
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0..=0x1FFF => self.read_ram(addr),
@@ -1659,7 +1666,7 @@ mod tests {
             loop {
                 emu.cpu.clock(&mut bus);
                 if emu.cpu.cycles == 0 {
-                    break
+                    break;
                 }
             }
         }
