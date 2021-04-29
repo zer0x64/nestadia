@@ -12,6 +12,7 @@ use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;
 use self::mapper_002::Mapper002;
 use self::mapper_003::Mapper003;
+use self::mapper_004::Mapper004;
 use self::mapper_066::Mapper066;
 use crate::cartridge::mapper_001::Mapper001;
 
@@ -84,6 +85,7 @@ impl Cartridge {
             1 => Box::new(Mapper001::new(header.prg_size)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
+            4 => Box::new(Mapper004::new(header.prg_size, mirroring)),
             66 => Box::new(Mapper066::new(mirroring)),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
