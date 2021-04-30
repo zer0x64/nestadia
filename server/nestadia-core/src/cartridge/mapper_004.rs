@@ -118,12 +118,15 @@ impl Mapper for Mapper004 {
             0xA000 ..=0xBFFF => {
                 if (addr & 0x01) == 0 {
                     // Mirroring
-                    if self.mirroring != Mirroring::FourScreen {
-                        self.mirroring = match data & 0x01 {
-                            0 => Mirroring::Vertical,
-                            1 => Mirroring::Horizontal,
-                            _ => unreachable!(),
-                        }
+                    match self.mirroring {
+                        Mirroring::FourScreen => {
+                            self.mirroring = match data & 0x01 {
+                                0 => Mirroring::Vertical,
+                                1 => Mirroring::Horizontal,
+                                _ => unreachable!(),
+                            }
+                        },
+                        _ => (),
                     }
                 } else {
                     // PRG RAM protect
