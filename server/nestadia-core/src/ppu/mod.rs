@@ -29,6 +29,7 @@ pub struct Ppu {
     scanline: i16,
     frame: PpuFrame,
     vblank_nmi_set: bool,
+    last_data_on_bus: u8,
 }
 
 impl Default for Ppu {
@@ -54,6 +55,7 @@ impl Ppu {
             scanline: 0,
             frame: [0u8; 256 * 240],
             vblank_nmi_set: false,
+            last_data_on_bus: 0,
         }
     }
 
@@ -192,7 +194,7 @@ impl Ppu {
                 // Read Status
 
                 // 3 top bits are the PPU status, least significant bits are noise from PPU bus.
-                let snapshot = self.status_reg.read() | bus.noise() & 0x1F;
+                let snapshot = self.status_reg.read() | self.last_data_on_bus & 0x1F;
 
                 // Reading the Status register clear bit 7 and also the address latch used by PPUSCROLL and PPUADDR.
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
@@ -217,8 +219,16 @@ impl Ppu {
 
                 match read_addr {
                     // Addresses mapped to PPU bus
-                    0..=0x1FFF => bus.read_chr_mem(read_addr),
-                    0x2000..=0x2FFF => bus.read_name_tables(read_addr),
+                    0..=0x1FFF => {
+                        let data = self.last_data_on_bus;
+                        self.last_data_on_bus = bus.read_chr_mem(read_addr);
+                        data
+                    },
+                    0x2000..=0x2FFF => {
+                        let data = self.last_data_on_bus;
+                        self.last_data_on_bus = bus.read_name_tables(read_addr);
+                        data
+                    },
 
                     // Unused address space
                     0x3000..=0x3EFF => {
@@ -318,7 +328,7 @@ impl Ppu {
     }
 
     fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
-        let attr_table_idx = (tile_y / 2) * 8 + (tile_x / 2);
+        let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
         let attr_base_addr = nametable_base_addr + 960;
         let attr_byte = bus.read_name_tables(attr_base_addr + attr_table_idx);

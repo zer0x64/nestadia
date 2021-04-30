@@ -16,7 +16,6 @@ macro_rules! borrow_cpu_bus {
             &mut $owner.cartridge,
             &mut $owner.ppu,
             &mut $owner.name_tables,
-            &mut $owner.last_data_on_ppu_bus,
         )
     }};
 }
@@ -26,7 +25,6 @@ macro_rules! borrow_ppu_bus {
         $crate::bus::PpuBus::borrow(
             &mut $owner.cartridge,
             &mut $owner.name_tables,
-            &mut $owner.last_data_on_ppu_bus,
         )
     }};
 }
@@ -42,7 +40,6 @@ pub struct CpuBus<'a> {
     cartridge: &'a mut Cartridge,
     ppu: &'a mut Ppu,
     name_tables: &'a mut [u8; 1024 * 2],
-    last_data_on_ppu_bus: &'a mut u8,
 }
 
 impl<'a> CpuBus<'a> {
@@ -57,7 +54,6 @@ impl<'a> CpuBus<'a> {
         cartridge: &'a mut Cartridge,
         ppu: &'a mut Ppu,
         name_tables: &'a mut [u8; 1024 * 2],
-        last_data_on_ppu_bus: &'a mut u8,
     ) -> Self {
         Self {
             controller1,
@@ -70,7 +66,6 @@ impl<'a> CpuBus<'a> {
             cartridge,
             ppu,
             name_tables,
-            last_data_on_ppu_bus,
         }
     }
 }
@@ -141,19 +136,16 @@ impl CpuBus<'_> {
 pub struct PpuBus<'a> {
     cartridge: &'a mut Cartridge,
     name_tables: &'a mut [u8; 1024 * 2],
-    last_data_on_ppu_bus: &'a mut u8,
 }
 
 impl<'a> PpuBus<'a> {
     pub fn borrow(
         cartridge: &'a mut Cartridge,
         name_tables: &'a mut [u8; 1024 * 2],
-        last_data_on_ppu_bus: &'a mut u8,
     ) -> Self {
         Self {
             cartridge,
             name_tables,
-            last_data_on_ppu_bus,
         }
     }
 }
@@ -164,9 +156,7 @@ impl PpuBus<'_> {
 
     /// Read CHR memory from cartridge
     pub fn read_chr_mem(&mut self, addr: u16) -> u8 {
-        let data = *self.last_data_on_ppu_bus;
-        *self.last_data_on_ppu_bus = self.cartridge.read_chr_mem(addr);
-        data
+        self.cartridge.read_chr_mem(addr)
     }
 
     /// Write to CHR memory on cartridge (if writable)
@@ -175,19 +165,11 @@ impl PpuBus<'_> {
     }
 
     pub fn read_name_tables(&mut self, addr: u16) -> u8 {
-        /*let data = *self.last_data_on_ppu_bus; // TODO WAT DIS
-         *self.last_data_on_ppu_bus = */
         self.name_tables[self.mirror_name_tables_addr(addr) as usize]
-        //data
     }
 
     pub fn write_name_tables(&mut self, addr: u16, data: u8) {
         self.name_tables[self.mirror_name_tables_addr(addr) as usize] = data;
-    }
-
-    /// Returns the last PPU transaction.
-    pub fn noise(&self) -> u8 {
-        *self.last_data_on_ppu_bus
     }
 
     // http://wiki.nesdev.com/w/index.php/Mirroring#Nametable_Mirroring
