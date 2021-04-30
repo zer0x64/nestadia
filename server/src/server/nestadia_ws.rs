@@ -12,7 +12,6 @@ use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
 use nestadia_core::{Emulator, ExecutionMode};
-use rand::Rng;
 use std::io::Write;
 
 /// How often heartbeat pings are sent
