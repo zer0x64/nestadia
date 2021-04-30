@@ -20,7 +20,7 @@ use actix_web_actors::ws;
 
 use nestadia_core::ExecutionMode;
 
-const ROM_LIST: [&str; 3] = ["rom1", "rom2", "rom3"];
+const ROM_LIST: [&str; 3] = ["Alter Ego", "Cheryl The Goddess", "Flappybird"];
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Credentials {
@@ -31,9 +31,9 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     let rom_name = req.match_info().get("rom_name").unwrap();
 
     let rom = match rom_name {
-        _ if rom_name == ROM_LIST[0] => include_bytes!("../../test_roms/1.Branch_Basics.nes"),
-        _ if rom_name == ROM_LIST[1] => include_bytes!("../../test_roms/2.Backward_Branch.nes"),
-        _ if rom_name == ROM_LIST[2] => include_bytes!("../../test_roms/3.Forward_Branch.nes"),
+        _ if rom_name == ROM_LIST[0] => &include_bytes!("../../default_roms/Alter_Ego.nes")[..],
+        _ if rom_name == ROM_LIST[1] => &include_bytes!("../../default_roms/cheril-the-goddess.nes")[..],
+        _ if rom_name == ROM_LIST[2] => &include_bytes!("../../default_roms/flappybird.nes")[..],
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
@@ -66,7 +66,7 @@ async fn rom_list(_req: HttpRequest) -> impl Responder {
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let websocket = NestadiaWs {
         state: EmulationState::Ready {
-            rom: include_bytes!("../../test_roms/1.Branch_Basics.nes"),
+            rom: include_bytes!("../../default_roms/1.Branch_Basics.nes"),
             exec_mode: ExecutionMode::Ring0,
         }, // TODO: Specify flag mode and put vulnerable ROM
         heartbeat: Instant::now(),
