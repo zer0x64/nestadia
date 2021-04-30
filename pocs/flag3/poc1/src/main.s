@@ -156,8 +156,8 @@ buf = 4
 loop:
   sty buf
   lda buf
-  ;.byte $80
-  lda #$41
+  .byte $80
+  ;lda #$41
   cpy #$30
   beq done
   iny
