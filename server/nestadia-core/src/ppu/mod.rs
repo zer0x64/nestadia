@@ -223,12 +223,12 @@ impl Ppu {
                         let data = self.last_data_on_bus;
                         self.last_data_on_bus = bus.read_chr_mem(read_addr);
                         data
-                    },
+                    }
                     0x2000..=0x2FFF => {
                         let data = self.last_data_on_bus;
                         self.last_data_on_bus = bus.read_name_tables(read_addr);
                         data
-                    },
+                    }
 
                     // Unused address space
                     0x3000..=0x3EFF => {
@@ -303,6 +303,10 @@ impl Ppu {
             return;
         }
 
+        // TODO: scrolling
+        let _scroll_x = self.scroll_reg.scroll_x();
+        let _scroll_y = self.scroll_reg.scroll_y();
+
         let bank = self.ctrl_reg.background_pattern_base_addr();
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
 
@@ -332,8 +336,10 @@ impl Ppu {
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
         let attr_base_addr = nametable_base_addr + 960;
         let attr_byte = bus.read_name_tables(attr_base_addr + attr_table_idx);
+        let meta_tile_x = (tile_x / 2) % 2;
+        let meta_tile_y = (tile_y / 2) % 2;
 
-        let palette_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+        let palette_idx = match (meta_tile_x, meta_tile_y) {
             (0, 0) => attr_byte & 0b11,
             (1, 0) => (attr_byte >> 2) & 0b11,
             (0, 1) => (attr_byte >> 4) & 0b11,
@@ -352,49 +358,50 @@ impl Ppu {
 
     // this is mostly for quick debugging
     fn dump_sprites(&mut self, bus: &mut PpuBus) {
-        for i in (0..self.oam_data.len()).step_by(4).rev() {
-            let tile_idx = self.oam_data[i + 1] as u16;
-            let tile_x = self.oam_data[i + 3] as u16;
-            let tile_y = self.oam_data[i] as u16;
+        for i in (0..self.oam_data.len()).step_by(4) {
+            let tile_idx = u16::from(self.oam_data[i + 1]);
+            let tile_x = u16::from(self.oam_data[i + 3]);
+            let tile_y = u16::from(self.oam_data[i]);
 
             let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
-                true
+                |x| 7 - x
             } else {
-                false
+                |x| x
             };
+
             let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                true
+                |y| 7 - y
             } else {
-                false
+                |y| y
             };
+
+            // find sprite palette
             let palette_idx = self.oam_data[i + 2] & 0b11;
             let sprite_palette = self.sprite_palette(palette_idx);
 
+            // load tile pattern
             let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
-
             let mut tile = [0u8; 16];
             for i in 0..16 {
                 tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
             }
 
-            for y in 0..=7 {
-                let mut hi = tile[y as usize];
-                let mut lo = tile[y as usize + 8];
-
-                for x in (0..=7).rev() {
-                    let pat = (lo & 0b1) << 1 | (hi & 0b1);
-                    hi >>= 1;
-                    lo >>= 1;
-                    if pat == 0 {
-                        // transparant
-                    } else {
+            for y in 0..8 {
+                let byte_lo = tile[y as usize];
+                let byte_hi = tile[y as usize + 8];
+                for x in 0..8 {
+                    let shift = 7 - x;
+                    let pat_lo = (byte_lo >> shift) & 0b1;
+                    let pat_hi = (byte_hi >> shift) & 0b1;
+                    let pat = pat_hi << 1 | pat_lo;
+                    if pat != 0 {
+                        // non-transparant
                         let color = sprite_palette[pat as usize];
-                        match (flip_horizontal, flip_vertical) {
-                            (false, false) => self.set_pixel(tile_x + x, tile_y + y, color),
-                            (true, false) => self.set_pixel(tile_x + 7 - x, tile_y + y, color),
-                            (false, true) => self.set_pixel(tile_x + x, tile_y + 7 - y, color),
-                            (true, true) => self.set_pixel(tile_x + 7 - x, tile_y + 7 - y, color),
-                        }
+                        self.set_pixel(
+                            tile_x + flip_horizontal(x),
+                            tile_y + flip_vertical(y),
+                            color,
+                        );
                     }
                 }
             }
@@ -450,7 +457,6 @@ pub mod test {
         cartridge: Cartridge,
         ppu: Ppu,
         name_tables: [u8; 1024 * 2],
-        last_data_on_ppu_bus: u8,
     }
 
     fn mock_emu(rom: &[u8]) -> MockEmulator {
@@ -458,7 +464,6 @@ pub mod test {
             cartridge: Cartridge::load(rom).unwrap(),
             ppu: Ppu::default(),
             name_tables: [0u8; 1024 * 2],
-            last_data_on_ppu_bus: 0,
         }
     }
 
