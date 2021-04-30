@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { CSSProperties } from 'react';
 import './App.css';
 import AppState from './appstate';
 import DevDashboard from './devdashboard/devdashboard';
@@ -46,10 +46,14 @@ class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mod
       content = (<Emulator setAppState={this.setAppState.bind(this)} mode={this.state.mode}></Emulator>)
     }
 
+    const styleLogo: CSSProperties = {
+        marginBottom: "4vh",
+    }
+
     return (
       <div className="App">
         <header className="App-header">
-          <img src={logo} alt="logo"/>
+          <img style={styleLogo} src={logo} alt="logo"/>
           {content}
         </header>
       </div>
