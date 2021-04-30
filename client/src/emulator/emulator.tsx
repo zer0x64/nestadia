@@ -1,4 +1,4 @@
-import React, { ChangeEvent, createRef, RefObject } from "react";
+import React, { ChangeEvent, CSSProperties, createRef, RefObject } from "react";
 import RGB_VALUE_TABLE from "./RGB_VALUES_TABLE";
 import * as gzip from 'gzip-js';
 import EmulatorMode from "./emulatorMode";
@@ -137,7 +137,31 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
         let ws: WebSocket = this.startEmulation("/api/emulator/custom");
         
         ws.onopen = (e) => {
-            ws.send(fileBuffer);
+            let romLength = fileBuffer.length;
+            let lengthBuf = new Uint8Array(4);
+            lengthBuf[0] = (romLength & 0x000000FF) >> 0;
+            lengthBuf[1] = (romLength & 0x0000FF00) >> 8;
+            lengthBuf[2] = (romLength & 0x00FF0000) >> 16;
+            lengthBuf[3] = (romLength & 0xFF000000) >> 24;
+
+            // Send ROM by chunk
+            let chunkStart = 0;
+            let chunkEnd = 0;
+
+            do {
+                chunkEnd = Math.min(romLength, chunkEnd + 50000);
+
+                if (chunkStart == 0) {
+                    let chunk = new Uint8Array(chunkEnd + 4);
+                    chunk.set(lengthBuf);
+                    chunk.set(fileBuffer.subarray(chunkStart, chunkEnd), 4);
+                    ws.send(chunk);
+                } else {
+                    ws.send(fileBuffer.subarray(chunkStart, chunkEnd));
+                }
+                chunkStart = chunkEnd;
+            } while (chunkEnd < romLength);
+
             this.wsAddEventListener(ws);
             this.websocket = ws;
             this.controllerAddEventListener();
@@ -168,7 +192,28 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
     render() {
         let content;
         if(this.state.started) {
-            content = (<canvas ref={this.canvasRef} onLoad={this.onCanvasLoad}></canvas>)
+            const keybindStyle: CSSProperties = {
+                marginTop: "2vh",
+                paddingLeft: "1vh",
+                border: "1px solid white",
+                fontSize: "calc(7px + 1vmin)",
+                textAlign: "left",
+                width: "60vh",
+            }
+            content = (
+              <div>
+                <canvas ref={this.canvasRef} width="256px" height="240px" onLoad={this.onCanvasLoad}></canvas>
+                <div style={keybindStyle}>
+                  <h3>Keybind</h3>
+                  <p>Arrows =&gt; D-pad<br/>
+                    X =&gt; A<br/>
+                    Z =&gt; B<br/>
+                    A =&gt; Select<br/>
+                    S =&gt; Start<br/>
+                  </p>
+                </div>
+              </div>
+            )
         }
         else if(this.props.mode == EmulatorMode.Normal) {
             let choices: any[] = [];

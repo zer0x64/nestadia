@@ -37,7 +37,6 @@ pub struct Emulator {
     // == PPU == //
     ppu: Ppu,
     name_tables: [u8; 1024 * 2], // VRAM
-    last_data_on_ppu_bus: u8,
 
     // Emulator internal state
     clock_count: u8,
@@ -59,7 +58,6 @@ impl Emulator {
 
             ppu: Ppu::new(),
             name_tables: [0u8; 1024 * 2],
-            last_data_on_ppu_bus: 0,
 
             clock_count: 0,
         };

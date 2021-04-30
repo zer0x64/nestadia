@@ -534,8 +534,8 @@ impl Cpu {
 
                 Opcode::FlagAcc => {
                     let flag = match self.execution_mode {
-                        ExecutionMode::Ring0 => FLAG3,
-                        ExecutionMode::Ring3 => FLAG4,
+                        ExecutionMode::Ring0 => FLAG4,
+                        ExecutionMode::Ring3 => FLAG3,
                     };
 
                     let index = (self.a as usize) % flag.len();

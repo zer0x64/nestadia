@@ -9,6 +9,13 @@ members = [
     "./nestadia-core",
 ]
 
+[profile.dev]
+# Slightly better optimizations.
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+
 [features]
 default = ["gui", "server", "debugger"]
 gui = ["iced", "iced_futures", "iced_native", "sdl2"]

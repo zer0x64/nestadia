@@ -136,21 +136,23 @@ impl ControlReg {
         }
     }
 
-    // pub fn sprite_size(&self) -> u8 {
-    //     if self.contains(ControlReg::SPRITE_SIZE) {
-    //         16
-    //     } else {
-    //         8
-    //     }
-    // }
+    #[allow(dead_code)]
+    pub fn sprite_size(&self) -> u8 {
+        if self.contains(ControlReg::SPRITE_SIZE) {
+            16
+        } else {
+            8
+        }
+    }
 
-    // pub fn master_slave_select(&self) -> u8 {
-    //     if self.contains(ControlReg::SPRITE_SIZE) {
-    //         1
-    //     } else {
-    //         0
-    //     }
-    // }
+    #[allow(dead_code)]
+    pub fn master_slave_select(&self) -> u8 {
+        if self.contains(ControlReg::SPRITE_SIZE) {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 // == scroll register == //
@@ -186,13 +188,13 @@ impl ScrollReg {
         self.latch = false;
     }
 
-    // pub fn scroll_x(&self) -> u8 {
-    //     self.scroll_x
-    // }
+    pub fn scroll_x(&self) -> u8 {
+        self.scroll_x
+    }
 
-    // pub fn scroll_y(&self) -> u8 {
-    //     self.scroll_y
-    // }
+    pub fn scroll_y(&self) -> u8 {
+        self.scroll_y
+    }
 }
 
 // == status register == //

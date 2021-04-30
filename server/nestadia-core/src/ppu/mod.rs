@@ -8,6 +8,9 @@ pub const FRAME_HEIGHT: usize = 240;
 
 pub type PpuFrame = [u8; FRAME_WIDTH * FRAME_HEIGHT];
 
+// TODO: at some point, we need to set the StatusReg::SPRITE_OVERFLOW flag!
+// See: https://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation#Sprite_overflow_bug
+
 pub struct Ppu {
     // Internal memory
     palette_table: [u8; 32], // For color stuff
@@ -26,6 +29,7 @@ pub struct Ppu {
     scanline: i16,
     frame: PpuFrame,
     vblank_nmi_set: bool,
+    last_data_on_bus: u8,
 }
 
 impl Default for Ppu {
@@ -51,6 +55,7 @@ impl Ppu {
             scanline: 0,
             frame: [0u8; 256 * 240],
             vblank_nmi_set: false,
+            last_data_on_bus: 0,
         }
     }
 
@@ -147,7 +152,7 @@ impl Ppu {
                     // Mirror some specific addresses to $3F00/$3F04/$3F08/$3F0C
                     // (usually, used for transparency)
                     0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
-                        let write_addr_mirror = write_addr - 0x10;
+                        let write_addr_mirror = write_addr - 0x0010;
                         self.palette_table[(write_addr_mirror % 32) as usize] = data;
                     }
                     0x3F00..=0x3FFF => self.palette_table[(write_addr % 32) as usize] = data,
@@ -189,7 +194,7 @@ impl Ppu {
                 // Read Status
 
                 // 3 top bits are the PPU status, least significant bits are noise from PPU bus.
-                let snapshot = self.status_reg.read() | bus.noise() & 0x1F;
+                let snapshot = self.status_reg.read() | self.last_data_on_bus & 0x1F;
 
                 // Reading the Status register clear bit 7 and also the address latch used by PPUSCROLL and PPUADDR.
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
@@ -214,8 +219,16 @@ impl Ppu {
 
                 match read_addr {
                     // Addresses mapped to PPU bus
-                    0..=0x1FFF => bus.read_chr_mem(read_addr),
-                    0x2000..=0x2FFF => bus.read_name_tables(read_addr),
+                    0..=0x1FFF => {
+                        let data = self.last_data_on_bus;
+                        self.last_data_on_bus = bus.read_chr_mem(read_addr);
+                        data
+                    }
+                    0x2000..=0x2FFF => {
+                        let data = self.last_data_on_bus;
+                        self.last_data_on_bus = bus.read_name_tables(read_addr);
+                        data
+                    }
 
                     // Unused address space
                     0x3000..=0x3EFF => {
@@ -247,8 +260,10 @@ impl Ppu {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
-            // TODO: check for sprite zero hit (Sprite 0 hit is not detected at x=255, nor is it
-            // detected at x=0 through 7 if the background or sprites are hidden in this area.)
+            if self.is_sprite_0_hit() {
+                self.status_reg
+                    .insert(registers::StatusReg::SPRITE_ZERO_HIT);
+            }
 
             self.cycle_count = self.cycle_count - 341;
             self.scanline += 1;
@@ -269,7 +284,7 @@ impl Ppu {
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
-                // TMP
+                // FIXME: temporary workaround for quick and dirty, but somewhat working, rendering
                 self.dump_sprites(bus);
 
                 // Yeah! We got a frame ready
@@ -289,6 +304,10 @@ impl Ppu {
             return;
         }
 
+        // TODO: scrolling
+        let _scroll_x = self.scroll_reg.scroll_x();
+        let _scroll_y = self.scroll_reg.scroll_y();
+
         let bank = self.ctrl_reg.background_pattern_base_addr();
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
 
@@ -300,7 +319,7 @@ impl Ppu {
 
         let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
 
-        let pat_x = x % 8;
+        let pat_x = 7 - x % 8;
         let pat_y = y % 8;
         let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
         let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
@@ -313,19 +332,15 @@ impl Ppu {
         self.set_pixel(x, y, color);
     }
 
-    fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
-        let idx = y as usize * FRAME_WIDTH + x as usize;
-        if idx < self.frame.len() {
-            self.frame[idx] = color;
-        }
-    }
-
     fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
         let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
-        let attr_byte = bus.read_name_tables(nametable_base_addr + 960 + attr_table_idx);
+        let attr_base_addr = nametable_base_addr + 960;
+        let attr_byte = bus.read_name_tables(attr_base_addr + attr_table_idx);
+        let meta_tile_x = (tile_x / 2) % 2;
+        let meta_tile_y = (tile_y / 2) % 2;
 
-        let palette_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+        let palette_idx = match (meta_tile_x, meta_tile_y) {
             (0, 0) => attr_byte & 0b11,
             (1, 0) => (attr_byte >> 2) & 0b11,
             (0, 1) => (attr_byte >> 4) & 0b11,
@@ -342,8 +357,60 @@ impl Ppu {
         ]
     }
 
+    // this is mostly for quick debugging
+    fn dump_sprites(&mut self, bus: &mut PpuBus) {
+        for i in (0..self.oam_data.len()).step_by(4) {
+            let tile_idx = u16::from(self.oam_data[i + 1]);
+            let tile_x = u16::from(self.oam_data[i + 3]);
+            let tile_y = u16::from(self.oam_data[i]);
+
+            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
+                |x| 7 - x
+            } else {
+                |x| x
+            };
+
+            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
+                |y| 7 - y
+            } else {
+                |y| y
+            };
+
+            // find sprite palette
+            let palette_idx = self.oam_data[i + 2] & 0b11;
+            let sprite_palette = self.sprite_palette(palette_idx);
+
+            // load tile pattern
+            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
+            let mut tile = [0u8; 16];
+            for i in 0..16 {
+                tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
+            }
+
+            for y in 0..8 {
+                let byte_lo = tile[y as usize];
+                let byte_hi = tile[y as usize + 8];
+                for x in 0..8 {
+                    let shift = 7 - x;
+                    let pat_lo = (byte_lo >> shift) & 0b1;
+                    let pat_hi = (byte_hi >> shift) & 0b1;
+                    let pat = pat_hi << 1 | pat_lo;
+                    if pat != 0 {
+                        // non-transparant
+                        let color = sprite_palette[pat as usize];
+                        self.set_pixel(
+                            tile_x + flip_horizontal(x),
+                            tile_y + flip_vertical(y),
+                            color,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn sprite_palette(&mut self, palette_idx: u8) -> [u8; 4] {
-        let pallete_start = usize::from(palette_idx) * 4 + 1;
+        let pallete_start = usize::from(palette_idx + 4) * 4 + 1;
         [
             self.palette_table[0],
             self.palette_table[pallete_start],
@@ -352,52 +419,24 @@ impl Ppu {
         ]
     }
 
-    // FIXME: should probably be done pixel by pixel like the background
-    fn dump_sprites(&mut self, bus: &mut PpuBus) {
-        for i in (0..self.oam_data.len()).step_by(4).rev() {
-            let tile_idx = self.oam_data[i + 1] as u16;
-            let tile_x = self.oam_data[i + 3] as u16;
-            let tile_y = self.oam_data[i] as u16;
-
-            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
-                true
-            } else {
-                false
-            };
-            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                false
-            } else {
-                true
-            };
-            let palette_idx = self.oam_data[i + 2] & 0b11;
-            let sprite_palette = self.sprite_palette(palette_idx);
-
-            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
-
-            let mut tile = [0u8; 16];
-            for i in 0..16 {
-                tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
-            }
-
-            for y in 0..=7 {
-                for x in (0..=7).rev() {
-                    let hi = tile[y as usize] >> x;
-                    let lo = tile[y as usize + 8] >> x;
-                    let pat = (1 & lo) << 1 | (1 & hi);
-                    if pat == 0 {
-                        // transparant
-                    } else {
-                        let color = sprite_palette[pat as usize];
-                        match (flip_horizontal, flip_vertical) {
-                            (false, false) => self.set_pixel(tile_x + x, tile_y + y, color),
-                            (true, false) => self.set_pixel(tile_x + 7 - x, tile_y + y, color),
-                            (false, true) => self.set_pixel(tile_x + x, tile_y + 7 - y, color),
-                            (true, true) => self.set_pixel(tile_x + 7 - x, tile_y + 7 - y, color),
-                        }
-                    }
-                }
-            }
+    fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
+        let idx = y as usize * FRAME_WIDTH + x as usize;
+        if idx < self.frame.len() {
+            self.frame[idx] = color;
         }
+    }
+
+    /// See: https://wiki.nesdev.com/w/index.php?title=PPU_OAM#Sprite_zero_hits
+    fn is_sprite_0_hit(&self) -> bool {
+        // Check for sprite zero hit
+        // FIXME: this is an approximated simulation
+        // Also, as per NESDev wiki: "Sprite 0 hit is not detected at x=255, nor is it detected at x=0 through 7 if the background or sprites are hidden in this area."
+        // (more to check)
+        let y = i16::from(self.oam_data[0]);
+        let x = u16::from(self.oam_data[3]);
+        (y == self.scanline)
+            && x <= self.cycle_count
+            && self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES)
     }
 
     fn increment_vram_addr(&mut self) {
@@ -412,14 +451,13 @@ pub mod test {
     use crate::cartridge::Mirroring;
     use crate::Cartridge;
 
-    const ROM_HORIZONTAL: &'static [u8] = include_bytes!("../../../test_roms/1.Branch_Basics.nes");
-    const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../test_roms/Alter_Ego.nes");
+    const ROM_HORIZONTAL: &'static [u8] = include_bytes!("../../../default_roms/1.Branch_Basics.nes");
+    const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../default_roms/Alter_Ego.nes");
 
     struct MockEmulator {
         cartridge: Cartridge,
         ppu: Ppu,
         name_tables: [u8; 1024 * 2],
-        last_data_on_ppu_bus: u8,
     }
 
     fn mock_emu(rom: &[u8]) -> MockEmulator {
@@ -427,7 +465,6 @@ pub mod test {
             cartridge: Cartridge::load(rom).unwrap(),
             ppu: Ppu::default(),
             name_tables: [0u8; 1024 * 2],
-            last_data_on_ppu_bus: 0,
         }
     }
 

@@ -2,6 +2,7 @@ use std::{
     pin::Pin,
     sync::mpsc::{channel, Receiver, Sender},
     time::{Duration, Instant},
+    io::Cursor,
 };
 
 use futures::task::{Poll, Waker};
@@ -12,8 +13,8 @@ use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
 use nestadia_core::{Emulator, ExecutionMode};
-use rand::Rng;
 use std::io::Write;
+use std::convert::TryInto;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -34,6 +35,8 @@ pub enum EmulationState {
 pub struct NestadiaWs {
     pub state: EmulationState,
     pub heartbeat: Instant,
+    pub custom_rom: Vec<u8>,
+    pub custom_rom_len: usize,
 }
 
 struct FrameStream {
@@ -108,13 +111,27 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
             Ok(ws::Message::Binary(bin)) => {
                 match &mut self.state {
                     EmulationState::Waiting { exec_mode } => {
-                        match start_emulation(ctx, &bin, *exec_mode) {
-                            Ok(sender) => self.state = EmulationState::Started(sender),
-                            // If there's an error, just ignore it and wait for a valid ROM
-                            Err(_) => (),
+                        // Received chunk of ROM
+                        if self.custom_rom.len() == 0 {
+                            // First 4 bytes are used to specify the ROM's size
+                            self.custom_rom_len = u32::from_le_bytes(bin[0..4].try_into().unwrap()) as usize;
+                            self.custom_rom = Vec::with_capacity(self.custom_rom_len);
+
+                            self.custom_rom.extend_from_slice(&bin[4..]);
+                        } else {
+                            self.custom_rom.extend_from_slice(&bin);
                         }
-                    } // Received ROM
+
+                        if self.custom_rom.len() == self.custom_rom_len {
+                            match start_emulation(ctx, &self.custom_rom, *exec_mode) {
+                                Ok(sender) => self.state = EmulationState::Started(sender),
+                                // If there's an error, just ignore it and wait for a valid ROM
+                                Err(_) => (),
+                            }
+                        }
+                    }
                     EmulationState::Started(input_sender) => {
+                        // Received controller input
                         if bin.len() > 0 {
                             let _ = input_sender.send(EmulatorInput::Controller1(bin[0]));
                         };
@@ -123,7 +140,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                 }
             }
             Ok(ws::Message::Close(_)) => ctx.stop(),
-            _ => (),
+            _ => (log::warn!("Websocket received msg of unsupported type {:?}", msg)),
         }
     }
 }
