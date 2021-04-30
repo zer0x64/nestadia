@@ -168,7 +168,7 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
     render() {
         let content;
         if(this.state.started) {
-            content = (<canvas ref={this.canvasRef} onLoad={this.onCanvasLoad}></canvas>)
+            content = (<canvas ref={this.canvasRef} width="256px" height="240px" onLoad={this.onCanvasLoad}></canvas>)
         }
         else if(this.props.mode == EmulatorMode.Normal) {
             let choices: any[] = [];
