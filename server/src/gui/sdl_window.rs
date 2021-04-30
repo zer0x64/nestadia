@@ -6,7 +6,6 @@ use std::{
 use sdl2::{event::Event, keyboard::Keycode};
 
 use super::{EmulationState, NES_HEIGHT, NES_WIDTH};
-
 use super::rgb_value_table::RGB_VALUE_TABLE;
 
 pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
@@ -36,6 +35,8 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+
+    let mut sdl_frame = [0u8; 256 * 240 * 3];
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -128,7 +129,7 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
             };
 
             // Maps 6 bit colors to RGB
-            let frame: Vec<u8> = frame
+            frame
                 .iter()
                 .flat_map(|c| {
                     RGB_VALUE_TABLE
@@ -136,9 +137,10 @@ pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
                         .unwrap_or(&[0x00, 0x00, 0x00])
                 })
                 .copied()
-                .collect();
+                .zip(sdl_frame.iter_mut())
+                .for_each(|(new, target)| *target = new);
 
-            texture.update(None, &frame, 256 * 3).unwrap();
+            texture.update(None, &sdl_frame, 256 * 3).unwrap();
             canvas.copy(&texture, None, None).unwrap();
         };
 
