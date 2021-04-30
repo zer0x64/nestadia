@@ -8,6 +8,9 @@ pub const FRAME_HEIGHT: usize = 240;
 
 pub type PpuFrame = [u8; FRAME_WIDTH * FRAME_HEIGHT];
 
+// TODO: at some point, we need to set the StatusReg::SPRITE_OVERFLOW flag!
+// See: https://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation#Sprite_overflow_bug
+
 pub struct Ppu {
     // Internal memory
     palette_table: [u8; 32], // For color stuff
@@ -147,7 +150,7 @@ impl Ppu {
                     // Mirror some specific addresses to $3F00/$3F04/$3F08/$3F0C
                     // (usually, used for transparency)
                     0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
-                        let write_addr_mirror = write_addr - 0x10;
+                        let write_addr_mirror = write_addr - 0x0010;
                         self.palette_table[(write_addr_mirror % 32) as usize] = data;
                     }
                     0x3F00..=0x3FFF => self.palette_table[(write_addr % 32) as usize] = data,
@@ -247,8 +250,10 @@ impl Ppu {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
-            // TODO: check for sprite zero hit (Sprite 0 hit is not detected at x=255, nor is it
-            // detected at x=0 through 7 if the background or sprites are hidden in this area.)
+            if self.is_sprite_0_hit() {
+                self.status_reg
+                    .insert(registers::StatusReg::SPRITE_ZERO_HIT);
+            }
 
             self.cycle_count = self.cycle_count - 341;
             self.scanline += 1;
@@ -268,8 +273,8 @@ impl Ppu {
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
-                // TMP
-                //self.dump_sprites(bus);
+                // FIXME: temporary workaround for quick and dirty, but somewhat working, rendering
+                self.dump_sprites(bus);
 
                 // Yeah! We got a frame ready
                 return Some(&self.frame);
@@ -312,17 +317,11 @@ impl Ppu {
         self.set_pixel(x, y, color);
     }
 
-    fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
-        let idx = y as usize * FRAME_WIDTH + x as usize;
-        if idx < self.frame.len() {
-            self.frame[idx] = color;
-        }
-    }
-
     fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
-        let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
+        let attr_table_idx = (tile_y / 2) * 8 + (tile_x / 2);
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
-        let attr_byte = bus.read_name_tables(nametable_base_addr + 960 + attr_table_idx);
+        let attr_base_addr = nametable_base_addr + 960;
+        let attr_byte = bus.read_name_tables(attr_base_addr + attr_table_idx);
 
         let palette_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
             (0, 0) => attr_byte & 0b11,
@@ -341,17 +340,7 @@ impl Ppu {
         ]
     }
 
-    fn sprite_palette(&mut self, palette_idx: u8) -> [u8; 4] {
-        let pallete_start = usize::from(palette_idx) * 4 + 1;
-        [
-            self.palette_table[0],
-            self.palette_table[pallete_start],
-            self.palette_table[pallete_start + 1],
-            self.palette_table[pallete_start + 2],
-        ]
-    }
-
-    // FIXME: should probably be done pixel by pixel like the background
+    // this is mostly for quick debugging
     fn dump_sprites(&mut self, bus: &mut PpuBus) {
         for i in (0..self.oam_data.len()).step_by(4).rev() {
             let tile_idx = self.oam_data[i + 1] as u16;
@@ -364,9 +353,9 @@ impl Ppu {
                 false
             };
             let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                false
-            } else {
                 true
+            } else {
+                false
             };
             let palette_idx = self.oam_data[i + 2] & 0b11;
             let sprite_palette = self.sprite_palette(palette_idx);
@@ -379,10 +368,13 @@ impl Ppu {
             }
 
             for y in 0..=7 {
+                let mut hi = tile[y as usize];
+                let mut lo = tile[y as usize + 8];
+
                 for x in (0..=7).rev() {
-                    let hi = tile[y as usize] >> x;
-                    let lo = tile[y as usize + 8] >> x;
-                    let pat = (1 & lo) << 1 | (1 & hi);
+                    let pat = (lo & 0b1) << 1 | (hi & 0b1);
+                    hi >>= 1;
+                    lo >>= 1;
                     if pat == 0 {
                         // transparant
                     } else {
@@ -397,6 +389,36 @@ impl Ppu {
                 }
             }
         }
+    }
+
+    fn sprite_palette(&mut self, palette_idx: u8) -> [u8; 4] {
+        let pallete_start = usize::from(palette_idx + 4) * 4 + 1;
+        [
+            self.palette_table[0],
+            self.palette_table[pallete_start],
+            self.palette_table[pallete_start + 1],
+            self.palette_table[pallete_start + 2],
+        ]
+    }
+
+    fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
+        let idx = y as usize * FRAME_WIDTH + x as usize;
+        if idx < self.frame.len() {
+            self.frame[idx] = color;
+        }
+    }
+
+    /// See: https://wiki.nesdev.com/w/index.php?title=PPU_OAM#Sprite_zero_hits
+    fn is_sprite_0_hit(&self) -> bool {
+        // Check for sprite zero hit
+        // FIXME: this is an approximated simulation
+        // Also, as per NESDev wiki: "Sprite 0 hit is not detected at x=255, nor is it detected at x=0 through 7 if the background or sprites are hidden in this area."
+        // (more to check)
+        let y = i16::from(self.oam_data[0]);
+        let x = u16::from(self.oam_data[3]);
+        (y == self.scanline)
+            && x <= self.cycle_count
+            && self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES)
     }
 
     fn increment_vram_addr(&mut self) {
