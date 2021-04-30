@@ -7,7 +7,6 @@ use std::{
 
 use futures::task::{Poll, Waker};
 use log::info;
-use byteorder::{LittleEndian, ReadBytesExt};
 
 use actix::prelude::*;
 use actix_web_actors::ws;

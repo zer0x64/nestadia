@@ -2565,7 +2565,6 @@ dependencies = [
  "actix-web",
  "actix-web-actors",
  "argon2",
- "byteorder",
  "flate2",
  "flexi_logger",
  "futures",
