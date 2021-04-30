@@ -152,9 +152,9 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
                 chunkEnd = Math.min(romLength, chunkEnd + 50000);
 
                 if (chunkStart == 0) {
-                    let chunk = new Uint8Array(romLength + 4);
+                    let chunk = new Uint8Array(chunkEnd + 4);
                     chunk.set(lengthBuf);
-                    chunk.set(fileBuffer, 4);
+                    chunk.set(fileBuffer.subarray(chunkStart, chunkEnd), 4);
                     ws.send(chunk);
                 } else {
                     ws.send(fileBuffer.subarray(chunkStart, chunkEnd));
