@@ -1,4 +1,4 @@
-import React, { ChangeEvent, createRef, RefObject } from "react";
+import React, { ChangeEvent, CSSProperties, createRef, RefObject } from "react";
 import RGB_VALUE_TABLE from "./RGB_VALUES_TABLE";
 import * as gzip from 'gzip-js';
 import EmulatorMode from "./emulatorMode";
@@ -168,7 +168,28 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
     render() {
         let content;
         if(this.state.started) {
-            content = (<canvas ref={this.canvasRef} width="256px" height="240px" onLoad={this.onCanvasLoad}></canvas>)
+            const keybindStyle: CSSProperties = {
+                marginTop: "2vh",
+                paddingLeft: "1vh",
+                border: "1px solid white",
+                fontSize: "calc(7px + 1vmin)",
+                textAlign: "left",
+                width: "60vh",
+            }
+            content = (
+              <div>
+                <canvas ref={this.canvasRef} width="256px" height="240px" onLoad={this.onCanvasLoad}></canvas>
+                <div style={keybindStyle}>
+                  <h3>Keybind</h3>
+                  <p>Arrows =&gt; D-pad<br/>
+                    X =&gt; A<br/>
+                    Z =&gt; B<br/>
+                    A =&gt; Select<br/>
+                    S =&gt; Start<br/>
+                  </p>
+                </div>
+              </div>
+            )
         }
         else if(this.props.mode == EmulatorMode.Normal) {
             let choices: any[] = [];
