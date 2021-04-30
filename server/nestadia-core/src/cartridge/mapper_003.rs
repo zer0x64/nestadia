@@ -38,4 +38,8 @@ impl Mapper for Mapper003 {
     fn mirroring(&self) -> Mirroring {
         self.mirroring
     }
+
+    fn get_sram(&self) -> Option<&[u8]> {
+        None
+    }
 }

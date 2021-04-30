@@ -5,8 +5,8 @@ use std::{
 
 use sdl2::{event::Event, keyboard::Keycode};
 
-use super::{EmulationState, NES_HEIGHT, NES_WIDTH};
 use super::rgb_value_table::RGB_VALUE_TABLE;
+use super::{EmulationState, NES_HEIGHT, NES_WIDTH};
 
 pub(crate) fn start_game(emulation_state: Arc<RwLock<EmulationState>>) {
     let sdl_context = sdl2::init().unwrap();

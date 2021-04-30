@@ -1657,7 +1657,7 @@ mod tests {
             controller2_state: false,
             controller1_snapshot: 0,
             controller2_snapshot: 0,
-            cartridge: Cartridge::load(&rom).unwrap(),
+            cartridge: Cartridge::load(&rom, None).unwrap(),
 
             ram: [0u8; RAM_SIZE as usize],
             ppu: Ppu::default(),

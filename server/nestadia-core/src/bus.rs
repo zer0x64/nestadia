@@ -22,10 +22,7 @@ macro_rules! borrow_cpu_bus {
 
 macro_rules! borrow_ppu_bus {
     ($owner:ident) => {{
-        $crate::bus::PpuBus::borrow(
-            &mut $owner.cartridge,
-            &mut $owner.name_tables,
-        )
+        $crate::bus::PpuBus::borrow(&mut $owner.cartridge, &mut $owner.name_tables)
     }};
 }
 
@@ -139,10 +136,7 @@ pub struct PpuBus<'a> {
 }
 
 impl<'a> PpuBus<'a> {
-    pub fn borrow(
-        cartridge: &'a mut Cartridge,
-        name_tables: &'a mut [u8; 1024 * 2],
-    ) -> Self {
+    pub fn borrow(cartridge: &'a mut Cartridge, name_tables: &'a mut [u8; 1024 * 2]) -> Self {
         Self {
             cartridge,
             name_tables,

@@ -32,7 +32,9 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
     let rom = match rom_name {
         _ if rom_name == ROM_LIST[0] => &include_bytes!("../../default_roms/Alter_Ego.nes")[..],
-        _ if rom_name == ROM_LIST[1] => &include_bytes!("../../default_roms/cheril-the-goddess.nes")[..],
+        _ if rom_name == ROM_LIST[1] => {
+            &include_bytes!("../../default_roms/cheril-the-goddess.nes")[..]
+        }
         _ if rom_name == ROM_LIST[2] => &include_bytes!("../../default_roms/flappybird.nes")[..],
         _ => return Ok(HttpResponse::NotFound().into()),
     };

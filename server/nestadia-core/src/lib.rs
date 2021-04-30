@@ -43,9 +43,13 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(rom: &[u8], execution_mode: ExecutionMode) -> Result<Self, RomParserError> {
+    pub fn new(
+        rom: &[u8],
+        save_data: Option<&[u8]>,
+        execution_mode: ExecutionMode,
+    ) -> Result<Self, RomParserError> {
         let mut emulator = Self {
-            cartridge: Cartridge::load(rom)?,
+            cartridge: Cartridge::load(rom, save_data)?,
 
             cpu: Cpu::new(execution_mode),
             controller1: 0,
@@ -102,6 +106,10 @@ impl Emulator {
         self.cpu.reset(&mut cpu_bus);
         self.ppu.reset();
         self.clock_count = 0;
+    }
+
+    pub fn get_save_data(&self) -> Option<&[u8]> {
+        self.cartridge.get_save_data()
     }
 
     #[cfg(feature = "debugger")]
