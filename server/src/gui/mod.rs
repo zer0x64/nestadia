@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 #[cfg(feature = "debugger")]
 use iced::{Application, Settings};
-use nestadia_core::Emulator;
+use nestadia_core::{Emulator, ExecutionMode};
 
 mod rgb_value_table;
 mod sdl_window;

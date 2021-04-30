@@ -137,7 +137,31 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
         let ws: WebSocket = this.startEmulation("/api/emulator/custom");
         
         ws.onopen = (e) => {
-            ws.send(fileBuffer);
+            let romLength = fileBuffer.length;
+            let lengthBuf = new Uint8Array(4);
+            lengthBuf[0] = (romLength & 0x000000FF) >> 0;
+            lengthBuf[1] = (romLength & 0x0000FF00) >> 8;
+            lengthBuf[2] = (romLength & 0x00FF0000) >> 16;
+            lengthBuf[3] = (romLength & 0xFF000000) >> 24;
+
+            // Send ROM by chunk
+            let chunkStart = 0;
+            let chunkEnd = 0;
+
+            do {
+                chunkEnd = Math.min(romLength, chunkEnd + 50000);
+
+                if (chunkStart == 0) {
+                    let chunk = new Uint8Array(chunkEnd + 4);
+                    chunk.set(lengthBuf);
+                    chunk.set(fileBuffer.subarray(chunkStart, chunkEnd), 4);
+                    ws.send(chunk);
+                } else {
+                    ws.send(fileBuffer.subarray(chunkStart, chunkEnd));
+                }
+                chunkStart = chunkEnd;
+            } while (chunkEnd < romLength);
+
             this.wsAddEventListener(ws);
             this.websocket = ws;
             this.controllerAddEventListener();
