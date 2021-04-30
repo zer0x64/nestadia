@@ -21,7 +21,7 @@ impl Mapper004 {
     pub fn new(prg_banks: u8, mirroring: Mirroring) -> Self {
         Self {
             prg_banks,
-            prg_bank_selector: [0u8, 0u8, 0u8, prg_banks - 1],
+            prg_bank_selector: [0u8, 0u8, 0u8, prg_banks * 2 - 1],
             chr_bank_selector: [0u8; 8],
             mirroring,
             prg_mode: false,
@@ -75,7 +75,7 @@ impl Mapper for Mapper004 {
             0x8000 ..=0x9FFF => {
                 if (addr & 0x01) == 0 {
                     // Bank select
-                    self.target_register = data & 0x03;
+                    self.target_register = data & 0x07;
                     self.prg_mode = (data & 0x40) == 0x40;
                     self.chr_inverson = (data & 0x80) == 0x80;
                 } else {
@@ -84,14 +84,14 @@ impl Mapper for Mapper004 {
 
                     // Update bank selectors
                     if self.prg_mode {
-                        self.prg_bank_selector[0] = self.prg_banks - 2;
+                        self.prg_bank_selector[0] = self.prg_banks * 2 - 2;
                         self.prg_bank_selector[2] = self.register[6] & 0x3F;
                     } else {
                         self.prg_bank_selector[0] = self.register[6] & 0x3F;
-                        self.prg_bank_selector[2] = self.prg_banks - 2;
+                        self.prg_bank_selector[2] = self.prg_banks * 2 - 2;
                     }
                     self.prg_bank_selector[1] = self.register[7] & 0x3F;
-                    self.prg_bank_selector[3] = self.prg_banks -1;
+                    self.prg_bank_selector[3] = self.prg_banks * 2 -1;
 
                     if self.chr_inverson {
                         self.chr_bank_selector[0] = self.register[2];
