@@ -43,6 +43,8 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
             exec_mode: ExecutionMode::Ring3,
         },
         heartbeat: Instant::now(),
+        custom_rom: vec![],
+        custom_rom_len: 0,
     };
 
     ws::start(websocket, &req, stream)
@@ -54,6 +56,8 @@ async fn custom_emulator(req: HttpRequest, stream: web::Payload) -> impl Respond
             exec_mode: ExecutionMode::Ring3,
         },
         heartbeat: Instant::now(),
+        custom_rom: vec![],
+        custom_rom_len: 0,
     };
 
     ws::start(websocket, &req, stream)
@@ -70,6 +74,8 @@ async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder 
             exec_mode: ExecutionMode::Ring0,
         }, // TODO: Specify flag mode and put vulnerable ROM
         heartbeat: Instant::now(),
+        custom_rom: vec![],
+        custom_rom_len: 0,
     };
 
     ws::start(websocket, &req, stream)
