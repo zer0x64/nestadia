@@ -314,7 +314,7 @@ impl Ppu {
 
         let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
 
-        let pat_x = x % 8;
+        let pat_x = 7 - x % 8;
         let pat_y = y % 8;
         let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
         let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
