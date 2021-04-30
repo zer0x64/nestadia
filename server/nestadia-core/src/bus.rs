@@ -175,9 +175,10 @@ impl PpuBus<'_> {
     }
 
     pub fn read_name_tables(&mut self, addr: u16) -> u8 {
-        let data = *self.last_data_on_ppu_bus;
-        *self.last_data_on_ppu_bus = self.name_tables[self.mirror_name_tables_addr(addr) as usize];
-        data
+        /*let data = *self.last_data_on_ppu_bus; // TODO WAT DIS
+         *self.last_data_on_ppu_bus = */
+        self.name_tables[self.mirror_name_tables_addr(addr) as usize]
+        //data
     }
 
     pub fn write_name_tables(&mut self, addr: u16, data: u8) {

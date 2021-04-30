@@ -269,7 +269,7 @@ impl Ppu {
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
 
                 // TMP
-                self.dump_sprites(bus);
+                //self.dump_sprites(bus);
 
                 // Yeah! We got a frame ready
                 return Some(&self.frame);
