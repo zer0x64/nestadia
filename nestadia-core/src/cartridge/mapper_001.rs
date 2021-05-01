@@ -15,10 +15,11 @@ pub struct Mapper001 {
     load_register_count: u8,
     control_register: u8,
     ram_data: [u8; 0x2000],
+    mirroring: Mirroring,
 }
 
 impl Mapper001 {
-    pub fn new(prg_banks: u8, save_data: Option<&[u8]>) -> Self {
+    pub fn new(prg_banks: u8, mirroring: Mirroring, save_data: Option<&[u8]>) -> Self {
         let mut ram_data = [0u8; 0x2000];
 
         // Load the save data
@@ -41,6 +42,7 @@ impl Mapper001 {
             load_register_count: 0,
             control_register: 0x0C,
             ram_data,
+            mirroring,
         }
     }
 }
@@ -104,6 +106,12 @@ impl Mapper for Mapper001 {
                 0x0000 => {
                     // Control register
                     self.control_register = self.load_register & 0x1F;
+                    match self.control_register & 0x03 {
+                        0 => self.mirroring = Mirroring::OneScreenLower,
+                        1 => self.mirroring = Mirroring::OneScreenUpper,
+                        2 => self.mirroring = Mirroring::Vertical,
+                        _ => self.mirroring = Mirroring::Horizontal,
+                    }
                 }
                 0x2000 => {
                     // CHR bank 0
@@ -165,12 +173,7 @@ impl Mapper for Mapper001 {
     }
 
     fn mirroring(&self) -> Mirroring {
-        match self.control_register & 0x03 {
-            0 => Mirroring::OneScreenLower,
-            1 => Mirroring::OneScreenUpper,
-            2 => Mirroring::Vertical,
-            _ => Mirroring::Horizontal,
-        }
+        self.mirroring
     }
 
     fn get_sram(&self) -> Option<&[u8]> {

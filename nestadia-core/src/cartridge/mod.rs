@@ -86,7 +86,7 @@ impl Cartridge {
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
-            1 => Box::new(Mapper001::new(header.prg_size, save_data)),
+            1 => Box::new(Mapper001::new(header.prg_size, mirroring, save_data)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
             4 => Box::new(Mapper004::new(header.prg_size, mirroring)),
