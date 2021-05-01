@@ -114,7 +114,7 @@ impl Ppu {
                 log::warn!("Attempted to write read-only PPU address: {:#X}", addr);
             }
             3 => {
-                // Write OAM Adress
+                // Write OAM Address
                 self.oam_addr_reg = data;
             }
             4 => {
@@ -128,7 +128,7 @@ impl Ppu {
                 self.scroll_reg.write(data);
             }
             6 => {
-                // write PPU Address
+                // Write PPU Address
                 self.addr_reg.load(data);
             }
             7 => {
@@ -319,13 +319,25 @@ impl Ppu {
 
         let x_scrolled = x.wrapping_add(scroll_x as u16);
         let y_scrolled = y.wrapping_add(scroll_y as u16);
-        
-        let mut quadrant: u8 = 0; 
+
+        let mut quadrant: u8 = 0;
         let mut offset = 0;
 
-        let tile_x = if x_scrolled < (32*8) {x_scrolled / 8} else {quadrant |= 1; offset |= 0x400; (x_scrolled - 32*8) / 8};
-        let tile_y = if y_scrolled < (32*8) {y_scrolled / 8} else {quadrant |= 2; offset |= 0x800; (y_scrolled - 32*8) / 8};
-        
+        let tile_x = if x_scrolled < (32 * 8) {
+            x_scrolled / 8
+        } else {
+            quadrant |= 1;
+            offset |= 0x400;
+            (x_scrolled - 32 * 8) / 8
+        };
+        let tile_y = if y_scrolled < (32 * 8) {
+            y_scrolled / 8
+        } else {
+            quadrant |= 2;
+            offset |= 0x800;
+            (y_scrolled - 32 * 8) / 8
+        };
+
         let tile_idx = tile_y * 32 + tile_x + offset;
 
         let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
@@ -478,14 +490,14 @@ pub mod test {
     struct MockEmulator {
         cartridge: Cartridge,
         ppu: Ppu,
-        name_tables: [u8; 1024 * 2],
+        name_tables: [u8; 1024 * 4],
     }
 
     fn mock_emu(rom: &[u8]) -> MockEmulator {
         MockEmulator {
             cartridge: Cartridge::load(rom, None).unwrap(),
             ppu: Ppu::default(),
-            name_tables: [0u8; 1024 * 2],
+            name_tables: [0u8; 1024 * 4],
         }
     }
 
