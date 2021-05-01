@@ -17,9 +17,8 @@ opt-level = 1
 codegen-units = 1
 
 [features]
-default = ["gui", "server", "debugger"]
+default = ["gui", "debugger"]
 gui = ["iced", "iced_futures", "iced_native", "sdl2"]
-server = ["rand", "futures", "serde", "argon2", "actix", "actix-web", "actix-web-actors", "actix-files", "actix-session", "flate2"]
 debugger = ["nestadia-core/debugger"]
 true-flags = ["nestadia-core/true-flags"]
 
@@ -34,14 +33,4 @@ iced_futures = { version = "0.3", features = ["tokio"], optional = true }
 iced_native = { version = "0.4.0", optional = true }
 sdl2 = { version = "0.34.3", optional = true }
 
-rand = { version = "0.8.3", optional = true }
-futures = { version = "0.3.14", optional = true }
-serde = { version = "1.0.125", optional = true }
-argon2 = { version = "0.1.5", optional = true }
-actix = { version = "0.10.0", optional = true }
-actix-web = { version = "3", optional = true }
-actix-web-actors = { version = "3", optional = true }
-actix-files = { version = "0.5.0", optional = true }
-actix-session = { version = "0.4.1", optional = true }
-flate2 = { version ="1.0.20" , optional = true }
 blake3 = "0.3.7"
