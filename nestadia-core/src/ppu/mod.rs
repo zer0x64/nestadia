@@ -452,7 +452,8 @@ pub mod test {
 
     const ROM_HORIZONTAL: &'static [u8] =
         include_bytes!("../../../default_roms/1.Branch_Basics.nes");
-    const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../default_roms/Alter_Ego.nes");
+    const ROM_VERTICAL: &'static [u8] =
+        include_bytes!("../../../default_roms/Alter_Ego.nes");
 
     struct MockEmulator {
         cartridge: Cartridge,

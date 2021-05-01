@@ -1,0 +1,21 @@
+[package]
+name = "nestadia-gui"
+version = "0.1.0"
+authors = ["zer0x64"]
+edition = "2018"
+
+[features]
+default = ["debugger"]
+debugger = ["nestadia-core/debugger"]
+true-flags = ["nestadia-core/true-flags"]
+
+[dependencies]
+nestadia-core = { path = "../nestadia-core" }
+flexi_logger = "0.17.1"
+log = "0.4.14"
+structopt = "0.3.21"
+
+iced = { version = "0.3", features = ["image", "tokio"] }
+iced_futures = { version = "0.3", features = ["tokio"] }
+iced_native = { version = "0.4.0" }
+sdl2 = { version = "0.34.3" }
