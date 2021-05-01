@@ -72,6 +72,10 @@ impl Emulator {
     }
 
     pub fn clock(&mut self) -> Option<&PpuFrame> {
+        // Make PPU clock first
+        let mut ppu_bus = borrow_ppu_bus!(self);
+        self.ppu.clock(&mut ppu_bus);
+
         // CPU clock is 3 times slower
         if self.clock_count % 3 == 0 {
             self.clock_count = 0;
@@ -94,8 +98,8 @@ impl Emulator {
 
         self.clock_count = self.clock_count.wrapping_add(1);
 
-        let mut ppu_bus = borrow_ppu_bus!(self);
-        self.ppu.clock(&mut ppu_bus)
+        // returns PPU frame if any
+        self.ppu.ready_frame()
     }
 
     pub fn set_controller1(&mut self, state: u8) {

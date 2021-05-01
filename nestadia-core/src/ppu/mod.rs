@@ -255,8 +255,17 @@ impl Ppu {
         }
     }
 
+    pub fn ready_frame(&mut self) -> Option<&PpuFrame> {
+        if self.cycle_count == 0 && self.scanline == -1 {
+            // Yeah! We got a frame ready
+            Some(&self.frame)
+        } else {
+            None
+        }
+    }
+
     /// Returns frame when it's ready
-    pub fn clock(&mut self, bus: &mut PpuBus) -> Option<&PpuFrame> {
+    pub fn clock(&mut self, bus: &mut PpuBus) {
         self.cycle_count += 1;
 
         if self.cycle_count >= 341 {
@@ -265,7 +274,7 @@ impl Ppu {
                     .insert(registers::StatusReg::SPRITE_ZERO_HIT);
             }
 
-            self.cycle_count = self.cycle_count - 341;
+            self.cycle_count = 0;
             self.scanline += 1;
             bus.irq_scanline();
 
@@ -286,15 +295,10 @@ impl Ppu {
 
                 // FIXME: temporary workaround for quick and dirty, but somewhat working, rendering
                 self.dump_sprites(bus);
-
-                // Yeah! We got a frame ready
-                return Some(&self.frame);
             }
         }
 
         self.render_pixel(bus);
-
-        None
     }
 
     fn render_pixel(&mut self, bus: &mut PpuBus) {
