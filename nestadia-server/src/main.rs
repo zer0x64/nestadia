@@ -1,5 +1,10 @@
 mod nestadia_ws;
 
+use std::error::Error;
+use std::path::PathBuf;
+
+use structopt::StructOpt;
+
 use nestadia_ws::{EmulationState, NestadiaWs};
 
 use std::time::Instant;
@@ -30,12 +35,12 @@ struct Credentials {
 async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let rom_name = req.match_info().get("rom_name").unwrap();
 
-    let rom = match rom_name {
-        _ if rom_name == ROM_LIST[0] => &include_bytes!("../../default_roms/Alter_Ego.nes")[..],
+    let rom: &[u8] = match rom_name {
+        _ if rom_name == ROM_LIST[0] => include_bytes!("../../default_roms/Alter_Ego.nes"),
         _ if rom_name == ROM_LIST[1] => {
-            &include_bytes!("../../default_roms/cheril-the-goddess.nes")[..]
+            include_bytes!("../../default_roms/cheril-the-goddess.nes")
         }
-        _ if rom_name == ROM_LIST[2] => &include_bytes!("../../default_roms/flappybird.nes")[..],
+        _ if rom_name == ROM_LIST[2] => include_bytes!("../../default_roms/flappybird.nes"),
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
@@ -181,3 +186,24 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
 
 //     assert_eq!(password_hash, "")
 // }
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "info", short, long)]
+    log_level: String,
+
+    #[structopt(default_value = "127.0.0.1", long, short)]
+    bind_addr: String,
+
+    #[structopt(default_value = "8080", long, short)]
+    port: u16,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let opt = Opt::from_args();
+    flexi_logger::Logger::with_str(opt.log_level)
+        .start()
+        .unwrap();
+
+    Ok(actix_main(opt.bind_addr, opt.port)?)
+}

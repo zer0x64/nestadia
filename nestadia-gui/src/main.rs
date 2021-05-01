@@ -1,4 +1,7 @@
+use std::error::Error;
+
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[cfg(feature = "debugger")]
 use iced::{Application, Settings};
@@ -41,4 +44,22 @@ pub fn gui_start(rom: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
     sdl_window::start_game(emulation_state);
     Ok(())
+}
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "info", short, long)]
+    log_level: String,
+
+    #[structopt(parse(from_os_str), default_value = "../default_roms/flappybird.nes")]
+    rom: PathBuf,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let opt = Opt::from_args();
+    flexi_logger::Logger::with_str(opt.log_level)
+        .start()
+        .unwrap();
+
+    Ok(gui_start(opt.rom)?)
 }
