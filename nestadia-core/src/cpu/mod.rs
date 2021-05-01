@@ -1624,8 +1624,7 @@ mod tests {
         ram: [u8; RAM_SIZE as usize],
         cartridge: Cartridge,
         ppu: Ppu,
-        name_tables: [u8; 1024 * 2],
-        last_data_on_ppu_bus: u8,
+        name_tables: [u8; 1024 * 4],
     }
 
     fn mock_emu(prgm: &[u8]) -> MockEmulator {
@@ -1661,8 +1660,7 @@ mod tests {
 
             ram: [0u8; RAM_SIZE as usize],
             ppu: Ppu::default(),
-            name_tables: [0u8; 1024 * 2],
-            last_data_on_ppu_bus: 0,
+            name_tables: [0u8; 1024 * 4],
         };
 
         emu.cpu.reset(&mut borrow_cpu_bus!(emu));
