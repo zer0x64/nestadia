@@ -392,6 +392,11 @@ impl Ppu {
     // this is mostly for quick debugging
     fn dump_sprites(&mut self, bus: &mut PpuBus) {
         for i in (0..self.oam_data.len()).step_by(4) {
+            let behind_background = self.oam_data[i + 2] >> 5 & 1 == 1;
+            if behind_background {
+                continue;
+            }
+
             let tile_idx = u16::from(self.oam_data[i + 1]);
             let tile_x = u16::from(self.oam_data[i + 3]);
             let tile_y = u16::from(self.oam_data[i]);

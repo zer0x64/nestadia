@@ -10,7 +10,6 @@ use core::convert::TryFrom as _;
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
-use alloc::string::String;
 
 use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;
@@ -196,7 +195,7 @@ impl Cartridge {
     }
 
     #[cfg(feature = "debugger")]
-    pub fn disassemble(&self) -> Vec<(u16, String)> {
+    pub fn disassemble(&self) -> Vec<(u16, alloc::string::String)> {
         let mut disas1 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x4000);
         let disas2 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x8000);
         let disas3 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0xc000);

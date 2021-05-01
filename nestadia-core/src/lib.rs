@@ -13,9 +13,6 @@ pub use cpu::Cpu;
 pub use ppu::Ppu;
 pub use cartridge::RomParserError;
 
-use alloc::vec::Vec;
-use alloc::string::String;
-
 use crate::cartridge::Cartridge;
 use crate::ppu::PpuFrame;
 
@@ -130,7 +127,7 @@ impl Emulator {
 
     #[cfg(feature = "debugger")]
     #[allow(unused_variables)] // FIXME
-    pub fn disassemble(&self, start: u16, end: u16) -> Vec<(u16, String)> {
+    pub fn disassemble(&self, start: u16, end: u16) -> alloc::vec::Vec<(u16, alloc::string::String)> {
         self.cartridge.disassemble()
     }
 

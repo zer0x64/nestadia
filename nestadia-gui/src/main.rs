@@ -34,11 +34,11 @@ pub fn gui_start(rom: PathBuf) -> iced::Result {
 }
 
 #[cfg(not(feature = "debugger"))]
-pub fn gui_start(rom: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn gui_start(rom: PathBuf) -> Result<(), Box<dyn Error>> {
     let rom = std::fs::read(rom).unwrap();
 
     let emulation_state = std::sync::Arc::new(std::sync::RwLock::new(EmulationState {
-        emulator: Emulator::new(&rom, None, nestadia_core::ExecutionMode::Ring3)?,
+        emulator: Emulator::new(&rom, None, nestadia_core::ExecutionMode::Ring3).unwrap(),
         is_running: true,
     }));
 
