@@ -267,6 +267,7 @@ impl Ppu {
 
             self.cycle_count = self.cycle_count - 341;
             self.scanline += 1;
+            bus.irq_scanline();
 
             if self.scanline == 241 {
                 self.status_reg.insert(registers::StatusReg::VBLANK_STARTED);

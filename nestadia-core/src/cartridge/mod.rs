@@ -3,6 +3,7 @@ mod mapper_000;
 mod mapper_001;
 mod mapper_002;
 mod mapper_003;
+mod mapper_004;
 mod mapper_066;
 
 use std::convert::TryFrom as _;
@@ -11,6 +12,7 @@ use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;
 use self::mapper_002::Mapper002;
 use self::mapper_003::Mapper003;
+use self::mapper_004::Mapper004;
 use self::mapper_066::Mapper066;
 use crate::cartridge::mapper_001::Mapper001;
 
@@ -50,6 +52,10 @@ trait Mapper: Send + Sync {
     fn ppu_map_write(&self, addr: u16) -> Option<usize>;
     fn mirroring(&self) -> Mirroring;
     fn get_sram(&self) -> Option<&[u8]>;
+
+    fn irq_state(&self) -> bool { false }
+    fn irq_clear(&mut self) {}
+    fn irq_scanline(&mut self) {}
 }
 
 pub struct Cartridge {
@@ -81,6 +87,7 @@ impl Cartridge {
             1 => Box::new(Mapper001::new(header.prg_size, save_data)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
+            4 => Box::new(Mapper004::new(header.prg_size, mirroring)),
             66 => Box::new(Mapper066::new(mirroring)),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
@@ -172,6 +179,16 @@ impl Cartridge {
 
     pub fn get_save_data(&self) -> Option<&[u8]> {
         self.mapper.get_sram()
+    }
+
+    pub fn take_irq_set_state(&mut self) -> bool {
+        let state = self.mapper.irq_state();
+        self.mapper.irq_clear();
+        state
+    }
+
+    pub fn irq_scanline(&mut self) {
+        self.mapper.irq_scanline()
     }
 
     #[cfg(feature = "debugger")]
