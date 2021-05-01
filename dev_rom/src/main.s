@@ -18,7 +18,24 @@
 
 .segment "CODE"
 end:
-  lda 1
+  lda #0
+  sta $20; Frame counter
+
+timer:
+  lda PPUSTATUS
+  and #$80
+  beq timer
+  
+  lda PPUSTATUS
+  and #$80
+  bne timer
+  
+  inc $20
+  lda $20
+  
+  cmp #$30
+  bne timer
+  jsr changePallette
   jmp end
 
 ; we don't use irqs yet
