@@ -141,7 +141,7 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
-            .wrap(CookieSession::signed(&session_key))
+            .wrap(CookieSession::signed(&session_key).secure(false))
             .service(
                 // We scope /api/dev/ differently to enforce access control
                 web::scope("/api/dev")
