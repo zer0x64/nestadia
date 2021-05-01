@@ -15,16 +15,16 @@ const IRQ_HANDLER: u16 = 0xFFFE;
 const NMI_HANDLER: u16 = 0xFFFA;
 
 #[cfg(not(feature = "true-flags"))]
-const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-debug.txt");
+const FLAG3: &[u8] = include_bytes!("../../../server/flags/flag3-debug.txt");
 
 #[cfg(feature = "true-flags")]
-const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-prod.txt");
+const FLAG3: &[u8] = include_bytes!("../../../server/flags/flag3-prod.txt");
 
 #[cfg(not(feature = "true-flags"))]
-const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-debug.txt");
+const FLAG4: &[u8] = include_bytes!("../../../server/flags/flag4-debug.txt");
 
 #[cfg(feature = "true-flags")]
-const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-prod.txt");
+const FLAG4: &[u8] = include_bytes!("../../../server/flags/flag4-prod.txt");
 
 bitflags! {
     pub struct StatusRegister: u8 {
