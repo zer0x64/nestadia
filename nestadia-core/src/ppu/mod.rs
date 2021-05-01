@@ -384,17 +384,9 @@ impl Ppu {
             let tile_x = u16::from(self.oam_data[i + 3]);
             let tile_y = u16::from(self.oam_data[i]);
 
-            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
-                |x| 7 - x
-            } else {
-                |x| x
-            };
+            let flip_vertical = self.oam_data[i + 2] >> 7 & 1 == 1;
 
-            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                |y| 7 - y
-            } else {
-                |y| y
-            };
+            let flip_horizontal = self.oam_data[i + 2] >> 6 & 1 == 1;
 
             // find sprite palette
             let palette_idx = self.oam_data[i + 2] & 0b11;
@@ -403,27 +395,97 @@ impl Ppu {
             // load tile pattern
             let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
             let mut tile = [0u8; 16];
-            for i in 0..16 {
-                tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
+
+            if self.ctrl_reg.sprite_size() == 0 {
+                // 8x8 sprites
+                for i in 0..16 {
+                    tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
+                }
+                self.to_be_renamed(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
+
+            } else {
+                // 8x16 sprites
+                if !flip_vertical {
+                    for i in 0..16 {
+                        tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
+                    }
+                    self.to_be_renamed(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
+
+                    for i in 0..16 {
+                        tile[i as usize] = bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
+                    }
+                    self.to_be_renamed(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y + 8);
+                } else {
+                    for i in 0..16 {
+                        tile[i as usize] = bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
+                    }
+                    self.to_be_renamed(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
+
+                    for i in 0..16 {
+                        tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
+                    }
+                    self.to_be_renamed(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y + 8);
+                }
+
             }
 
-            for y in 0..8 {
-                let byte_lo = tile[y as usize];
-                let byte_hi = tile[y as usize + 8];
-                for x in 0..8 {
-                    let shift = 7 - x;
-                    let pat_lo = (byte_lo >> shift) & 0b1;
-                    let pat_hi = (byte_hi >> shift) & 0b1;
-                    let pat = pat_hi << 1 | pat_lo;
-                    if pat != 0 {
-                        // non-transparant
-                        let color = sprite_palette[pat as usize];
-                        self.set_pixel(
-                            tile_x + flip_horizontal(x),
-                            tile_y + flip_vertical(y),
-                            color,
-                        );
-                    }
+            // for i in 0..16 {
+            //     // (tile_idx & 0xFE) * 16 for upper table and same + 1 for lower (opposite if vertical flip)
+            //     tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);  // TODO RM: Gets 8 low bytes and 8 high bytes
+            // }
+            //
+            // // TODO RM
+            // for y in 0..8 {
+            //     let byte_lo = tile[y as usize];
+            //     let byte_hi = tile[y as usize + 8];
+            //     for x in 0..8 {
+            //         let shift = 7 - x;
+            //         let pat_lo = (byte_lo >> shift) & 0b1;
+            //         let pat_hi = (byte_hi >> shift) & 0b1;
+            //         let pat = pat_hi << 1 | pat_lo;
+            //         if pat != 0 {
+            //             // non-transparant
+            //             let color = sprite_palette[pat as usize];
+            //             self.set_pixel(
+            //                 tile_x + flip_horizontal(x),
+            //                 tile_y + flip_vertical(y),
+            //                 color,
+            //             );
+            //         }
+            //     }
+            // }
+        }
+    }
+
+    fn to_be_renamed(&mut self, sprite_palette: [u8; 4], x_flip: bool, y_flip: bool, tile: [u8; 16], tile_x: u16, tile_y: u16) {
+        let flip_vertical = if y_flip {
+            |x| 7 - x
+        } else {
+            |x| x
+        };
+
+        let flip_horizontal = if x_flip {
+            |y| 7 - y
+        } else {
+            |y| y
+        };
+
+        for y in 0..8 {
+            let byte_lo = tile[y as usize];
+            let byte_hi = tile[y as usize + 8];
+            for x in 0..8 {
+                let shift = 7 - x;
+                let pat_lo = (byte_lo >> shift) & 0b1;
+                let pat_hi = (byte_hi >> shift) & 0b1;
+                let pat = pat_hi << 1 | pat_lo;
+                if pat != 0 {
+                    // non-transparant
+                    let color = sprite_palette[pat as usize];
+                    self.set_pixel(
+                        tile_x + flip_horizontal(x),
+                        tile_y + flip_vertical(y),
+                        color,
+                    );
                 }
             }
         }
