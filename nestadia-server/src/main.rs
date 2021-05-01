@@ -35,12 +35,12 @@ struct Credentials {
 async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Responder {
     let rom_name = req.match_info().get("rom_name").unwrap();
 
-    let rom = match rom_name {
-        _ if rom_name == ROM_LIST[0] => &include_bytes!("../../default_roms/Alter_Ego.nes")[..],
+    let rom: &[u8] = match rom_name {
+        _ if rom_name == ROM_LIST[0] => include_bytes!("../../default_roms/Alter_Ego.nes"),
         _ if rom_name == ROM_LIST[1] => {
-            &include_bytes!("../../default_roms/cheril-the-goddess.nes")[..]
+            include_bytes!("../../default_roms/cheril-the-goddess.nes")
         }
-        _ if rom_name == ROM_LIST[2] => &include_bytes!("../../default_roms/flappybird.nes")[..],
+        _ if rom_name == ROM_LIST[2] => include_bytes!("../../default_roms/flappybird.nes"),
         _ => return Ok(HttpResponse::NotFound().into()),
     };
 
@@ -112,10 +112,10 @@ fn verify_password(password: &str) -> bool {
 
 async fn flag(_req: HttpRequest) -> impl Responder {
     #[cfg(not(feature = "true-flags"))]
-        let flag = include_str!("../../server/flags/flag1-debug.txt");
+    let flag = include_str!("../../flags/flag1-debug.txt");
 
     #[cfg(feature = "true-flags")]
-        let flag = include_str!("../../server/flags/flag1-prod.txt");
+    let flag = include_str!("../../flags/flag1-prod.txt");
 
     flag
 }
@@ -171,9 +171,9 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
                     .disable_content_disposition(),
             )
     })
-        .bind((bind_addr, port))?
-        .run()
-        .await
+    .bind((bind_addr, port))?
+    .run()
+    .await
 }
 
 // Small code to generate the hash
@@ -187,30 +187,16 @@ pub async fn actix_main(bind_addr: String, port: u16) -> std::io::Result<()> {
 //     assert_eq!(password_hash, "")
 // }
 
-
 #[derive(Debug, StructOpt)]
 struct Opt {
     #[structopt(default_value = "info", short, long)]
     log_level: String,
 
-    #[structopt(subcommand)]
-    cmd: Command,
-}
+    #[structopt(default_value = "127.0.0.1", long, short)]
+    bind_addr: String,
 
-#[derive(Debug, StructOpt)]
-enum Command {
-    #[cfg(feature = "gui")]
-    Gui {
-        #[structopt(parse(from_os_str), default_value = "./default_roms/flappybird.nes")]
-        rom: PathBuf,
-    },
-    #[cfg(feature = "server")]
-    Server {
-        #[structopt(default_value = "127.0.0.1", long, short)]
-        bind_addr: String,
-        #[structopt(default_value = "8080", long, short)]
-        port: u16,
-    },
+    #[structopt(default_value = "8080", long, short)]
+    port: u16,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -219,13 +205,5 @@ fn main() -> Result<(), Box<dyn Error>> {
         .start()
         .unwrap();
 
-    match opt.cmd {
-        #[cfg(feature = "gui")]
-        Command::Gui { rom } => gui::gui_start(rom)?,
-        #[cfg(feature = "server")]
-        Command::Server { bind_addr, port } => server::actix_main(bind_addr, port)?,
-    }
-
-    Ok(())
+    Ok(actix_main(opt.bind_addr, opt.port)?)
 }
-

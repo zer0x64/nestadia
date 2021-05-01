@@ -1,4 +1,7 @@
+use std::error::Error;
+
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[cfg(feature = "debugger")]
 use iced::{Application, Settings};
@@ -43,39 +46,13 @@ pub fn gui_start(rom: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
-// Copied from server/
-use std::error::Error;
-use std::path::PathBuf;
-
-use structopt::StructOpt;
-
-#[cfg(not(any(feature = "gui", feature = "server")))]
-compile_error!("You need to select at least one feature!");
-
 #[derive(Debug, StructOpt)]
 struct Opt {
     #[structopt(default_value = "info", short, long)]
     log_level: String,
 
-    #[structopt(subcommand)]
-    cmd: Command,
-}
-
-#[derive(Debug, StructOpt)]
-enum Command {
-    #[cfg(feature = "gui")]
-    Gui {
-        #[structopt(parse(from_os_str), default_value = "./default_roms/flappybird.nes")]
-        rom: PathBuf,
-    },
-    #[cfg(feature = "server")]
-    Server {
-        #[structopt(default_value = "127.0.0.1", long, short)]
-        bind_addr: String,
-        #[structopt(default_value = "8080", long, short)]
-        port: u16,
-    },
+    #[structopt(parse(from_os_str), default_value = "../default_roms/flappybird.nes")]
+    rom: PathBuf,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -84,13 +61,5 @@ fn main() -> Result<(), Box<dyn Error>> {
         .start()
         .unwrap();
 
-    match opt.cmd {
-        #[cfg(feature = "gui")]
-        Command::Gui { rom } => gui::gui_start(rom)?,
-        #[cfg(feature = "server")]
-        Command::Server { bind_addr, port } => server::actix_main(bind_addr, port)?,
-    }
-
-    Ok(())
+    Ok(gui_start(opt.rom)?)
 }
-
