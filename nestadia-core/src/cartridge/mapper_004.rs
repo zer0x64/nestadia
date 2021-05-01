@@ -1,3 +1,6 @@
+use alloc::vec::Vec;
+use alloc::vec;
+
 use super::{CartridgeReadTarget, Mapper, Mirroring};
 
 pub struct Mapper004 {

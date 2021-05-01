@@ -184,7 +184,7 @@ impl Ppu {
                 log::warn!(
                     "Attempted to read write-only PPU address: {:#X} (culprit at {})",
                     addr,
-                    std::panic::Location::caller()
+                    core::panic::Location::caller()
                 );
                 0
             }
@@ -302,7 +302,7 @@ impl Ppu {
     }
 
     fn render_pixel(&mut self, bus: &mut PpuBus) {
-        use std::convert::TryFrom;
+        use core::convert::TryFrom;
 
         if self.scanline < 0 || self.scanline > 239 || self.cycle_count > 255 {
             return;

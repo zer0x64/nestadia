@@ -1,5 +1,9 @@
 use super::opcode::Opcode;
-use std::convert::TryFrom as _;
+use alloc::format;
+use alloc::string::String;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::convert::TryFrom as _;
 
 pub enum AddressingMode {
     Accumulator,

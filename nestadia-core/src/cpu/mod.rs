@@ -1,7 +1,8 @@
 #[cfg(feature = "debugger")]
 pub mod disassembler;
 mod opcode;
-use std::convert::TryFrom as _;
+
+use core::convert::TryFrom as _;
 
 use bitflags::bitflags;
 
@@ -1612,6 +1613,7 @@ mod tests {
     use crate::Cartridge;
     use crate::Ppu;
     use crate::RAM_SIZE;
+    use alloc::vec;
 
     struct MockEmulator {
         cpu: Cpu,
@@ -1630,7 +1632,7 @@ mod tests {
     fn mock_emu(prgm: &[u8]) -> MockEmulator {
         let mut rom = vec![0x00; 65552];
 
-        // dummy header
+        // Dummy header
         rom[0x0000] = 0x4E;
         rom[0x0001] = 0x45;
         rom[0x0002] = 0x53;
@@ -1639,12 +1641,12 @@ mod tests {
         rom[0x0005] = 0x00;
         rom[0x0006] = 0x31;
 
-        // test program
+        // Test program
         for (i, opcode) in prgm.iter().enumerate() {
             rom[i + 16 + 0x4020] = *opcode;
         }
 
-        // write PC start to point on $4020
+        // Write PC start to point on $4020
         rom[16 + 0x7FFC] = 0x20;
         rom[16 + 0x7FFD] = 0x40;
 

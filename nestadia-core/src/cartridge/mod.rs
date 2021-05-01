@@ -6,7 +6,11 @@ mod mapper_003;
 mod mapper_004;
 mod mapper_066;
 
-use std::convert::TryFrom as _;
+use core::convert::TryFrom as _;
+use alloc::vec::Vec;
+use alloc::vec;
+use alloc::boxed::Box;
+use alloc::string::String;
 
 use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;
@@ -32,13 +36,11 @@ pub enum RomParserError {
     MapperNotImplemented,
 }
 
-impl std::fmt::Display for RomParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for RomParserError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{:?}", &self)
     }
 }
-
-impl std::error::Error for RomParserError {}
 
 enum CartridgeReadTarget {
     PrgRam(u8),
@@ -105,7 +107,7 @@ impl Cartridge {
 
         let expected_rom_size = prg_start + prg_memory_len + chr_memory_len;
         if rom.len() < expected_rom_size {
-            println!(
+            log::error!(
                 "Invalid ROM size: expected {} bytes of memory, but ROM has {}",
                 expected_rom_size,
                 rom.len()

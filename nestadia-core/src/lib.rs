@@ -1,3 +1,7 @@
+#![no_std]
+
+extern crate alloc;
+
 #[macro_use]
 mod bus;
 
@@ -7,9 +11,12 @@ mod ppu;
 
 pub use cpu::Cpu;
 pub use ppu::Ppu;
+pub use cartridge::RomParserError;
+
+use alloc::vec::Vec;
+use alloc::string::String;
 
 use crate::cartridge::Cartridge;
-use crate::cartridge::RomParserError;
 use crate::ppu::PpuFrame;
 
 pub const RAM_SIZE: u16 = 0x0800;

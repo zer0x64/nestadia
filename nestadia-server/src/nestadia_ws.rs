@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+use std::io::Write;
 use std::{
     fs::{self, OpenOptions},
     io::Read,
@@ -13,14 +15,23 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
-use nestadia_core::{Emulator, ExecutionMode};
-use std::convert::TryInto;
-use std::io::Write;
+use nestadia_core::{Emulator, ExecutionMode, RomParserError};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
+
+#[derive(Debug, Clone, Copy)]
+pub struct EmulationError(RomParserError);
+
+impl core::fmt::Display for EmulationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{:?}", &self)
+    }
+}
+
+impl std::error::Error for EmulationError {}
 
 pub enum EmulationState {
     Waiting {
@@ -186,7 +197,7 @@ fn start_emulation(
         None
     };
 
-    let mut emulator = Emulator::new(rom, save_data, execution_mode)?;
+    let mut emulator = Emulator::new(rom, save_data, execution_mode).map_err(EmulationError)?;
 
     let (input_sender, input_receiver) = channel();
     let (frame_sender, frame_receiver) = channel();
