@@ -1,8 +1,9 @@
 use std::{
+    fs::{self, OpenOptions},
+    io::Read,
     pin::Pin,
     sync::mpsc::{channel, Receiver, Sender},
     time::{Duration, Instant},
-    io::Cursor,
 };
 
 use futures::task::{Poll, Waker};
@@ -13,8 +14,8 @@ use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
 use nestadia_core::{Emulator, ExecutionMode};
-use std::io::Write;
 use std::convert::TryInto;
+use std::io::Write;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -114,7 +115,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                         // Received chunk of ROM
                         if self.custom_rom.len() == 0 {
                             // First 4 bytes are used to specify the ROM's size
-                            self.custom_rom_len = u32::from_le_bytes(bin[0..4].try_into().unwrap()) as usize;
+                            self.custom_rom_len =
+                                u32::from_le_bytes(bin[0..4].try_into().unwrap()) as usize;
                             self.custom_rom = Vec::with_capacity(self.custom_rom_len);
 
                             self.custom_rom.extend_from_slice(&bin[4..]);
@@ -169,7 +171,19 @@ fn start_emulation(
     rom: &[u8],
     execution_mode: ExecutionMode,
 ) -> Result<Sender<EmulatorInput>, Box<dyn std::error::Error>> {
-    let mut emulator = Emulator::new(rom, execution_mode)?;
+    // Read save file
+    let rom_hash = blake3::hash(rom).to_hex().to_string();
+    let save_path = "saves/".to_string() + &rom_hash + ".save";
+    let mut buf = Vec::new();
+
+    let save_data = if let Ok(mut f) = std::fs::File::open(&save_path) {
+        let _ = f.read_to_end(&mut buf);
+        Some(buf.as_slice())
+    } else {
+        None
+    };
+
+    let mut emulator = Emulator::new(rom, save_data, execution_mode)?;
 
     let (input_sender, input_receiver) = channel();
     let (frame_sender, frame_receiver) = channel();
@@ -215,6 +229,22 @@ fn start_emulation(
             }
 
             next_frame_time = Instant::now() + Duration::new(0, 1_000_000_000u32 / 60);
+        }
+
+        // Save file
+        if let Err(e) = fs::create_dir_all("saves") {
+            log::warn!("Couldn't create save folder: {}", e)
+        };
+
+        if let Some(save_data) = emulator.get_save_data() {
+            if let Ok(mut f) = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(save_path)
+            {
+                let _ = f.write_all(save_data);
+            }
         }
     });
 

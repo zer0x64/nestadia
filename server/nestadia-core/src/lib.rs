@@ -36,16 +36,20 @@ pub struct Emulator {
 
     // == PPU == //
     ppu: Ppu,
-    name_tables: [u8; 1024 * 2], // VRAM
+    name_tables: [u8; 1024 * 4], // VRAM
 
     // Emulator internal state
     clock_count: u8,
 }
 
 impl Emulator {
-    pub fn new(rom: &[u8], execution_mode: ExecutionMode) -> Result<Self, RomParserError> {
+    pub fn new(
+        rom: &[u8],
+        save_data: Option<&[u8]>,
+        execution_mode: ExecutionMode,
+    ) -> Result<Self, RomParserError> {
         let mut emulator = Self {
-            cartridge: Cartridge::load(rom)?,
+            cartridge: Cartridge::load(rom, save_data)?,
 
             cpu: Cpu::new(execution_mode),
             controller1: 0,
@@ -57,7 +61,7 @@ impl Emulator {
             ram: [0u8; RAM_SIZE as usize],
 
             ppu: Ppu::new(),
-            name_tables: [0u8; 1024 * 2],
+            name_tables: [0u8; 1024 * 4],
 
             clock_count: 0,
         };
@@ -107,6 +111,10 @@ impl Emulator {
         self.cpu.reset(&mut cpu_bus);
         self.ppu.reset();
         self.clock_count = 0;
+    }
+
+    pub fn get_save_data(&self) -> Option<&[u8]> {
+        self.cartridge.get_save_data()
     }
 
     #[cfg(feature = "debugger")]

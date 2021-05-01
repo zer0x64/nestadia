@@ -51,6 +51,7 @@ trait Mapper: Send + Sync {
     fn ppu_map_read(&self, addr: u16) -> usize;
     fn ppu_map_write(&self, addr: u16) -> Option<usize>;
     fn mirroring(&self) -> Mirroring;
+    fn get_sram(&self) -> Option<&[u8]>;
 
     fn irq_state(&self) -> bool { false }
     fn irq_clear(&mut self) {}
@@ -65,7 +66,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn load(rom: &[u8]) -> Result<Self, RomParserError> {
+    pub fn load(rom: &[u8], save_data: Option<&[u8]>) -> Result<Self, RomParserError> {
         const PRG_BANK_SIZE: usize = 16384;
         const CHR_BANK_SIZE: usize = 8192;
 
@@ -83,7 +84,7 @@ impl Cartridge {
 
         let mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::new(header.prg_size, mirroring)),
-            1 => Box::new(Mapper001::new(header.prg_size)),
+            1 => Box::new(Mapper001::new(header.prg_size, save_data)),
             2 => Box::new(Mapper002::new(header.prg_size, mirroring)),
             3 => Box::new(Mapper003::new(header.prg_size, mirroring)),
             4 => Box::new(Mapper004::new(header.prg_size, mirroring)),
@@ -174,6 +175,10 @@ impl Cartridge {
                 addr
             );
         };
+    }
+
+    pub fn get_save_data(&self) -> Option<&[u8]> {
+        self.mapper.get_sram()
     }
 
     pub fn take_irq_set_state(&mut self) -> bool {

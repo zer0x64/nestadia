@@ -451,7 +451,8 @@ pub mod test {
     use crate::cartridge::Mirroring;
     use crate::Cartridge;
 
-    const ROM_HORIZONTAL: &'static [u8] = include_bytes!("../../../default_roms/1.Branch_Basics.nes");
+    const ROM_HORIZONTAL: &'static [u8] =
+        include_bytes!("../../../default_roms/1.Branch_Basics.nes");
     const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../default_roms/Alter_Ego.nes");
 
     struct MockEmulator {
@@ -462,7 +463,7 @@ pub mod test {
 
     fn mock_emu(rom: &[u8]) -> MockEmulator {
         MockEmulator {
-            cartridge: Cartridge::load(rom).unwrap(),
+            cartridge: Cartridge::load(rom, None).unwrap(),
             ppu: Ppu::default(),
             name_tables: [0u8; 1024 * 2],
         }

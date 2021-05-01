@@ -22,10 +22,7 @@ macro_rules! borrow_cpu_bus {
 
 macro_rules! borrow_ppu_bus {
     ($owner:ident) => {{
-        $crate::bus::PpuBus::borrow(
-            &mut $owner.cartridge,
-            &mut $owner.name_tables,
-        )
+        $crate::bus::PpuBus::borrow(&mut $owner.cartridge, &mut $owner.name_tables)
     }};
 }
 
@@ -39,7 +36,7 @@ pub struct CpuBus<'a> {
     ram: &'a mut [u8; RAM_SIZE as usize],
     cartridge: &'a mut Cartridge,
     ppu: &'a mut Ppu,
-    name_tables: &'a mut [u8; 1024 * 2],
+    name_tables: &'a mut [u8; 1024 * 4],
 }
 
 impl<'a> CpuBus<'a> {
@@ -53,7 +50,7 @@ impl<'a> CpuBus<'a> {
         ram: &'a mut [u8; RAM_SIZE as usize],
         cartridge: &'a mut Cartridge,
         ppu: &'a mut Ppu,
-        name_tables: &'a mut [u8; 1024 * 2],
+        name_tables: &'a mut [u8; 1024 * 4],
     ) -> Self {
         Self {
             controller1,
@@ -135,14 +132,11 @@ impl CpuBus<'_> {
 
 pub struct PpuBus<'a> {
     cartridge: &'a mut Cartridge,
-    name_tables: &'a mut [u8; 1024 * 2],
+    name_tables: &'a mut [u8; 1024 * 4],
 }
 
 impl<'a> PpuBus<'a> {
-    pub fn borrow(
-        cartridge: &'a mut Cartridge,
-        name_tables: &'a mut [u8; 1024 * 2],
-    ) -> Self {
+    pub fn borrow(cartridge: &'a mut Cartridge, name_tables: &'a mut [u8; 1024 * 4]) -> Self {
         Self {
             cartridge,
             name_tables,
@@ -190,7 +184,7 @@ impl PpuBus<'_> {
                 3072..=4095 => idx - 2048,
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => idx, // FIXME/TODO: this will probably cause an index out of range explosion with current code
+            Mirroring::FourScreen => idx,
             Mirroring::OneScreenLower => match idx {
                 0..=1023 => idx,
                 1024..=2047 => idx - 1024,

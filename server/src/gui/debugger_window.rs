@@ -41,7 +41,7 @@ impl Application for NestadiaIced {
     fn new(flags: NestadiaIcedRunFlags) -> (NestadiaIced, Command<Self::Message>) {
         let rom = fs::read(flags.rom_path).unwrap();
         let emulation_state = Arc::new(RwLock::new(EmulationState {
-            emulator: Emulator::new(&rom, ExecutionMode::Ring3).unwrap(),
+            emulator: Emulator::new(&rom, None, ExecutionMode::Ring3).unwrap(),
             is_running: false,
         }));
 

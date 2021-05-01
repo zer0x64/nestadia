@@ -14,11 +14,21 @@ pub struct Mapper001 {
     load_register: u8,
     load_register_count: u8,
     control_register: u8,
-    ram_data: Vec<u8>,
+    ram_data: [u8; 0x2000],
 }
 
 impl Mapper001 {
-    pub fn new(prg_banks: u8) -> Self {
+    pub fn new(prg_banks: u8, save_data: Option<&[u8]>) -> Self {
+        let mut ram_data = [0u8; 0x2000];
+
+        // Load the save data
+        if let Some(save_data) = save_data {
+            ram_data
+                .iter_mut()
+                .zip(save_data.iter())
+                .for_each(|(r, s)| *r = *s)
+        };
+
         Self {
             prg_banks,
             prg_bank_selector_32: 0,
@@ -30,7 +40,7 @@ impl Mapper001 {
             load_register: 0,
             load_register_count: 0,
             control_register: 0x0C,
-            ram_data: vec![0u8; 0x8000],
+            ram_data,
         }
     }
 }
@@ -161,5 +171,9 @@ impl Mapper for Mapper001 {
             2 => Mirroring::Vertical,
             _ => Mirroring::Horizontal,
         }
+    }
+
+    fn get_sram(&self) -> Option<&[u8]> {
+        Some(&self.ram_data)
     }
 }
