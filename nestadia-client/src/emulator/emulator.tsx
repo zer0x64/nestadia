@@ -183,26 +183,32 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
 
     onCanvasLoad(event: any) {
         let canvas = this.canvasRef?.current;
-        if (canvas) {
-            canvas.width = 256;
-            canvas.height = 240;
-        }
     }
 
     render() {
         let content;
         if(this.state.started) {
             const keybindStyle: CSSProperties = {
-                marginTop: "2vh",
-                paddingLeft: "1vh",
                 border: "1px solid white",
                 fontSize: "calc(7px + 1vmin)",
                 textAlign: "left",
                 width: "60vh",
             }
+
+            const horizontalAlign: CSSProperties = {
+                display: 'inline-flex',
+                padding: "0, 0, 0, 0",
+            }
+
+            let canvasWidth = window.screen.height * 0.5
+            const canvasStyle: CSSProperties = {
+                width: window.screen.height * 0.5,
+                height: window.screen.height * 0.5 * (240/256),
+            }
+
             content = (
-              <div>
-                <canvas ref={this.canvasRef} width="256px" height="240px" onLoad={this.onCanvasLoad}></canvas>
+              <div style={horizontalAlign}>
+                <canvas width="256" height="240" style={canvasStyle} ref={this.canvasRef} onLoad={this.onCanvasLoad}></canvas>
                 <div style={keybindStyle}>
                   <h3>Keybind</h3>
                   <p>Arrows =&gt; D-pad<br/>
