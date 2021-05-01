@@ -308,38 +308,54 @@ impl Ppu {
             return;
         }
 
-        // TODO: scrolling
-        let _scroll_x = self.scroll_reg.scroll_x();
-        let _scroll_y = self.scroll_reg.scroll_y();
+        let scroll_x = self.scroll_reg.scroll_x();
+        let scroll_y = self.scroll_reg.scroll_y();
 
         let bank = self.ctrl_reg.background_pattern_base_addr();
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
 
         let x = self.cycle_count;
         let y = u16::try_from(self.scanline).unwrap();
-        let tile_x = x / 8;
-        let tile_y = y / 8;
-        let tile_idx = tile_y * 32 + tile_x;
+
+        let x_scrolled = x.wrapping_add(scroll_x as u16);
+        let y_scrolled = y.wrapping_add(scroll_y as u16);
+        
+        let mut quadrant: u8 = 0; 
+        let mut offset = 0;
+
+        let tile_x = if x_scrolled < (32*8) {x_scrolled / 8} else {quadrant |= 1; offset |= 0x400; (x_scrolled - 32*8) / 8};
+        let tile_y = if y_scrolled < (32*8) {y_scrolled / 8} else {quadrant |= 2; offset |= 0x800; (y_scrolled - 32*8) / 8};
+        
+        let tile_idx = tile_y * 32 + tile_x + offset;
 
         let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
 
-        let pat_x = 7 - x % 8;
-        let pat_y = y % 8;
+        let pat_x = 7 - x_scrolled % 8;
+        let pat_y = y_scrolled % 8;
         let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
         let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
 
         let pat = hi << 1 | lo;
 
-        let palette = self.bg_palette(bus, tile_x, tile_y);
+        let palette = self.bg_palette(bus, tile_x, tile_y, quadrant);
         let color = palette[pat as usize];
 
         self.set_pixel(x, y, color);
     }
 
-    fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16) -> [u8; 4] {
+    fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16, quadrant: u8) -> [u8; 4] {
         let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
-        let attr_base_addr = nametable_base_addr + 960;
+
+        let offset = match quadrant & 0b11 {
+            0b00 => 0x3c0,
+            0x01 => 0x7c0,
+            0b10 => 0xbc0,
+            0b11 => 0xfc0,
+            _ => unreachable!(),
+        };
+
+        let attr_base_addr = nametable_base_addr + offset;
         let attr_byte = bus.read_name_tables(attr_base_addr + attr_table_idx);
         let meta_tile_x = (tile_x / 2) % 2;
         let meta_tile_y = (tile_y / 2) % 2;
