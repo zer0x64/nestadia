@@ -24,7 +24,7 @@ const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-prod.txt");
 const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-debug.txt");
 
 #[cfg(feature = "true-flags")]
-const FLAG4: &[u8] = include_bytes!("../../../server/flags/flag4-prod.txt");
+const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-prod.txt");
 
 bitflags! {
     pub struct StatusRegister: u8 {

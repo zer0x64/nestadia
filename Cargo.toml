@@ -1,10 +1,14 @@
-[profile.dev]
-# Slightly better optimizations.
-opt-level = 1
-
 [workspace]
 members = [
     "./nestadia-core",
     "./nestadia-gui",
     "./nestadia-server",
 ]
+
+[profile.dev]
+# Slightly better optimizations.
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+
