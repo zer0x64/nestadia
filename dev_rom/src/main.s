@@ -26,10 +26,6 @@ timer:
   and #$80
   beq timer
   
-  lda PPUSTATUS
-  and #$80
-  bne timer
-  
   inc $20
   lda $20
   

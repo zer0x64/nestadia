@@ -24,7 +24,7 @@ use actix_web_actors::ws;
 
 use nestadia_core::ExecutionMode;
 
-const ROM_LIST: [&str; 3] = ["Flappybird", "Alter Ego", "Cheryl The Goddess"];
+const ROM_LIST: [&str; 4] = ["Flappybird", "Alter Ego", "Nesert Bus", "Cheryl The Goddess"];
 
 const KEY: &[u8; 32] = b"\xa1\x9b\xd8\xdd\x29\xf3\xa7\x77\xd7\x61\x9b\x4b\x72\x90\x45\xc8\x4a\xea\x81\x93\xd5\xaf\x9a\x75\x2b\xec\x6c\xf7\xb7\x47\x50\x4d";
 
@@ -39,7 +39,8 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
     let rom: &[u8] = match rom_name {
         _ if rom_name == ROM_LIST[0] => include_bytes!("../../default_roms/flappybird.nes"),
         _ if rom_name == ROM_LIST[1] => include_bytes!("../../default_roms/Alter_Ego.nes"),
-        _ if rom_name == ROM_LIST[2] => {
+        _ if rom_name == ROM_LIST[2] => include_bytes!("../../default_roms/nesertbus.nes"),
+        _ if rom_name == ROM_LIST[3] => {
             include_bytes!("../../default_roms/cheril-the-goddess.nes")
         }
         _ => return Ok(HttpResponse::NotFound().into()),
