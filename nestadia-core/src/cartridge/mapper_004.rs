@@ -1,4 +1,4 @@
-use super::{Mapper, Mirroring, CartridgeReadTarget};
+use super::{CartridgeReadTarget, Mapper, Mirroring};
 
 pub struct Mapper004 {
     prg_banks: u8,
@@ -40,39 +40,37 @@ impl Mapper004 {
 
 impl Mapper for Mapper004 {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget {
-
         match addr {
-            0x6000 ..=0x7FFF => {
+            0x6000..=0x7FFF => {
                 // Read from RAM
                 CartridgeReadTarget::PrgRam(self.ram_data[(addr & 0x1FFF) as usize])
-            },
-            0x8000 ..=0x9FFF => {
-                CartridgeReadTarget::PrgRom((self.prg_bank_selector[0] as usize) * 0x2000 + (addr & 0x1FFF) as usize)
-            },
-            0xA000 ..=0xBFFF => {
-                CartridgeReadTarget::PrgRom((self.prg_bank_selector[1] as usize) * 0x2000 + (addr & 0x1FFF) as usize)
-            },
-            0xC000 ..=0xDFFF => {
-                CartridgeReadTarget::PrgRom((self.prg_bank_selector[2] as usize) * 0x2000 + (addr & 0x1FFF) as usize)
-            },
-            0xE000 ..=0xFFFF => {
-                CartridgeReadTarget::PrgRom((self.prg_bank_selector[3] as usize) * 0x2000 + (addr & 0x1FFF) as usize)
             }
+            0x8000..=0x9FFF => CartridgeReadTarget::PrgRom(
+                (self.prg_bank_selector[0] as usize) * 0x2000 + (addr & 0x1FFF) as usize,
+            ),
+            0xA000..=0xBFFF => CartridgeReadTarget::PrgRom(
+                (self.prg_bank_selector[1] as usize) * 0x2000 + (addr & 0x1FFF) as usize,
+            ),
+            0xC000..=0xDFFF => CartridgeReadTarget::PrgRom(
+                (self.prg_bank_selector[2] as usize) * 0x2000 + (addr & 0x1FFF) as usize,
+            ),
+            0xE000..=0xFFFF => CartridgeReadTarget::PrgRom(
+                (self.prg_bank_selector[3] as usize) * 0x2000 + (addr & 0x1FFF) as usize,
+            ),
             _ => {
                 log::warn!("Attempted to read address w/o known mapping {:#06x}", addr);
                 CartridgeReadTarget::PrgRom(0)
-            },
+            }
         }
     }
 
     fn cpu_map_write(&mut self, addr: u16, data: u8) {
-
         match addr {
-            0x6000 ..=0x7FFF => {
+            0x6000..=0x7FFF => {
                 // Write to RAM
                 self.ram_data[(addr & 0x1FFF) as usize] = data;
-            },
-            0x8000 ..=0x9FFF => {
+            }
+            0x8000..=0x9FFF => {
                 if (addr & 0x01) == 0 {
                     // Bank select
                     self.target_register = data & 0x07;
@@ -91,7 +89,7 @@ impl Mapper for Mapper004 {
                         self.prg_bank_selector[2] = self.prg_banks * 2 - 2;
                     }
                     self.prg_bank_selector[1] = self.register[7] & 0x3F;
-                    self.prg_bank_selector[3] = self.prg_banks * 2 -1;
+                    self.prg_bank_selector[3] = self.prg_banks * 2 - 1;
 
                     if self.chr_inverson {
                         self.chr_bank_selector[0] = self.register[2];
@@ -111,11 +109,10 @@ impl Mapper for Mapper004 {
                         self.chr_bank_selector[5] = self.register[3];
                         self.chr_bank_selector[6] = self.register[4];
                         self.chr_bank_selector[7] = self.register[5];
-
                     }
                 }
-            },
-            0xA000 ..=0xBFFF => {
+            }
+            0xA000..=0xBFFF => {
                 if (addr & 0x01) == 0 {
                     // Mirroring
                     match self.mirroring {
@@ -125,15 +122,15 @@ impl Mapper for Mapper004 {
                                 1 => Mirroring::Horizontal,
                                 _ => unreachable!(),
                             }
-                        },
+                        }
                         _ => (),
                     }
                 } else {
                     // PRG RAM protect
                     // Not needed
                 }
-            },
-            0xC000 ..=0xDFFF => {
+            }
+            0xC000..=0xDFFF => {
                 if (addr & 0x01) == 0 {
                     // IRQ latch
                     self.irq_reload = data;
@@ -141,8 +138,8 @@ impl Mapper for Mapper004 {
                     // IRQ reload
                     self.irq_counter = 0;
                 }
-            },
-            0xE000 ..=0xFFFF => {
+            }
+            0xE000..=0xFFFF => {
                 if (addr & 0x01) == 0 {
                     // IRQ disable
                     self.irq_enabled = false;
@@ -152,41 +149,46 @@ impl Mapper for Mapper004 {
                     self.irq_enabled = true;
                 }
             }
-            _ => log::warn!("Attempted to write to address w/o known mapping: {:#06x}", addr),
+            _ => log::warn!(
+                "Attempted to write to address w/o known mapping: {:#06x}",
+                addr
+            ),
         }
-
     }
 
     fn ppu_map_read(&self, addr: u16) -> usize {
         match addr {
-            0x0000 ..=0x03FF => {
+            0x0000..=0x03FF => {
                 (self.chr_bank_selector[0] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
-            0x0400 ..=0x7FF => {
+            }
+            0x0400..=0x7FF => {
                 (self.chr_bank_selector[1] as usize) * 0x0400 + (addr & 0x03FF) as usize
             }
-            0x0800 ..=0x0BFF => {
+            0x0800..=0x0BFF => {
                 (self.chr_bank_selector[2] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
-            0x0C00 ..=0xFFF => {
+            }
+            0x0C00..=0xFFF => {
                 (self.chr_bank_selector[3] as usize) * 0x0400 + (addr & 0x03FF) as usize
             }
-            0x1000 ..=0x13FF => {
+            0x1000..=0x13FF => {
                 (self.chr_bank_selector[4] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
-            0x1400 ..=0x17FF => {
+            }
+            0x1400..=0x17FF => {
                 (self.chr_bank_selector[5] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
-            0x1800 ..=0x1BFF => {
+            }
+            0x1800..=0x1BFF => {
                 (self.chr_bank_selector[6] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
-            0x1C00 ..=0x1FFF => {
+            }
+            0x1C00..=0x1FFF => {
                 (self.chr_bank_selector[7] as usize) * 0x0400 + (addr & 0x03FF) as usize
-            },
+            }
             _ => {
-                log::warn!("Attempted to read CHR address w/o known mapping: {:#06x}", addr);
+                log::warn!(
+                    "Attempted to read CHR address w/o known mapping: {:#06x}",
+                    addr
+                );
                 0 as usize
-            },
+            }
         }
     }
 

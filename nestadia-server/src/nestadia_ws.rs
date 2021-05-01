@@ -27,7 +27,7 @@ pub enum EmulationState {
         exec_mode: ExecutionMode,
     }, // wait for a user-provided ROM
     Ready {
-        rom: &'static [u8],
+        rom: Vec<u8>,
         exec_mode: ExecutionMode,
     }, // ready to start immediately
     Started(Sender<EmulatorInput>), // up and running

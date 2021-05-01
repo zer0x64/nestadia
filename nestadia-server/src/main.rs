@@ -1,7 +1,6 @@
 mod nestadia_ws;
 
 use std::error::Error;
-use std::path::PathBuf;
 
 use structopt::StructOpt;
 
@@ -27,6 +26,8 @@ use nestadia_core::ExecutionMode;
 
 const ROM_LIST: [&str; 3] = ["Alter Ego", "Cheryl The Goddess", "Flappybird"];
 
+const KEY: &[u8; 32] = b"\xa1\x9b\xd8\xdd\x29\xf3\xa7\x77\xd7\x61\x9b\x4b\x72\x90\x45\xc8\x4a\xea\x81\x93\xd5\xaf\x9a\x75\x2b\xec\x6c\xf7\xb7\x47\x50\x4d";
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Credentials {
     password: String,
@@ -46,7 +47,7 @@ async fn emulator_start_param(req: HttpRequest, stream: web::Payload) -> impl Re
 
     let websocket = NestadiaWs {
         state: EmulationState::Ready {
-            rom,
+            rom: rom.to_vec(),
             exec_mode: ExecutionMode::Ring3,
         },
         heartbeat: Instant::now(),
@@ -75,11 +76,19 @@ async fn rom_list(_req: HttpRequest) -> impl Responder {
 }
 
 async fn dev_emulator(req: HttpRequest, stream: web::Payload) -> impl Responder {
+    let enc_rom = include_bytes!("../../dev_rom/devrom.bin");
+
+    let rom: Vec<u8> = enc_rom
+        .iter()
+        .zip(KEY.iter().cycle())
+        .map(|(r, k)| r ^ k)
+        .collect();
+
     let websocket = NestadiaWs {
         state: EmulationState::Ready {
-            rom: include_bytes!("../../default_roms/1.Branch_Basics.nes"),
+            rom: rom,
             exec_mode: ExecutionMode::Ring0,
-        }, // TODO: Specify flag mode and put vulnerable ROM
+        },
         heartbeat: Instant::now(),
         custom_rom: vec![],
         custom_rom_len: 0,

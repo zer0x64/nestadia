@@ -53,7 +53,9 @@ trait Mapper: Send + Sync {
     fn mirroring(&self) -> Mirroring;
     fn get_sram(&self) -> Option<&[u8]>;
 
-    fn irq_state(&self) -> bool { false }
+    fn irq_state(&self) -> bool {
+        false
+    }
     fn irq_clear(&mut self) {}
     fn irq_scanline(&mut self) {}
 }
