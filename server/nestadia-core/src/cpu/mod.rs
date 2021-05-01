@@ -529,7 +529,8 @@ impl Cpu {
                 Opcode::RorAbsX => {
                     let (addr, _) = self.am_abx(bus);
                     let op = bus.read(addr);
-                    self.inst_ror(op);
+                    let result = self.inst_ror(op);
+                    bus.write(addr, result);
                 }
 
                 Opcode::FlagAcc => {
@@ -1419,18 +1420,17 @@ impl Cpu {
     fn inst_ror(&mut self, op: u8) -> u8 {
         let carry = self.status_register.contains(StatusRegister::C);
 
-        self.status_register
-            .set(StatusRegister::C, op & (1 << 0) > 0);
+        self.status_register.set(StatusRegister::C, (op & 1) > 0);
 
         let mut result = op >> 1;
 
         if carry {
-            result |= 1 << 7;
+            result = result | 0x80;
         }
 
         self.status_register.set(StatusRegister::Z, result == 0);
         self.status_register
-            .set(StatusRegister::N, result & 0x80 == 0x80);
+            .set(StatusRegister::N, (result & 0x80) > 0);
 
         result
     }
