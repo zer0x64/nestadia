@@ -189,10 +189,12 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
         let content;
         if(this.state.started) {
             const keybindStyle: CSSProperties = {
-                border: "1px solid white",
+                paddingLeft: "1vw",
+                marginLeft: "1vh",
+                border: "1px solid black",
                 fontSize: "calc(7px + 1vmin)",
                 textAlign: "left",
-                width: "60vh",
+                width: "50vh",
             }
 
             const horizontalAlign: CSSProperties = {
@@ -204,6 +206,7 @@ class Emulator extends React.Component<{setAppState: Function, mode: EmulatorMod
             const canvasStyle: CSSProperties = {
                 width: window.screen.height * 0.5,
                 height: window.screen.height * 0.5 * (240/256),
+                marginRight: "1vh",
             }
 
             content = (

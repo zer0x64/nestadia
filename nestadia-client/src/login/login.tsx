@@ -6,7 +6,7 @@ import AppState from '../appstate';
 
 const styles = {
   input: {
-    color: "white"
+    color: "black"
   }
 };
   
