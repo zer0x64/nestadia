@@ -134,7 +134,6 @@ mainLoop:
   lda 0
   ldx 1
   ldy 2
-  cpy #2
   jsr choosePage
   lda #0
   sta 0
@@ -211,7 +210,7 @@ mainLoop:
 .endproc
 
 .proc choosePage
-  cpy $3
+  cpy #$3
   beq page_300
   sta $0200,X
   jmp page_condition_end

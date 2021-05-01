@@ -103,6 +103,9 @@ impl Actor for NestadiaWs {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        // For clients that doesn't support Ping (looking at you Python)
+        self.heartbeat = Instant::now();
+
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
 
