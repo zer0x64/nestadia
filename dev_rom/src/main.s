@@ -17,6 +17,9 @@
   .addr nmi, reset, irq
 
 .segment "CODE"
+end:
+  lda 1
+  jmp end
 
 ; we don't use irqs yet
 .proc irq
@@ -81,10 +84,16 @@ vwait2:
   sta PPUCTRL
   lda #BG_ON
   sta PPUMASK
-
+  
+  ; Set initial data
+  lda #0
+  sta 0
+  lda #$0
+  sta 1
+  lda #$2
+  sta 2
 
 mainLoop:
-
   ; Input feed
   lda #$1
   sta $4016
@@ -106,28 +115,60 @@ mainLoop:
   lda $4016
   and #1
   bne start_button
-  jmp end_input
+  jmp mainLoop
   
   a_button:
-  b_button:
-  start_button:
-  end_input:
-
-  ; Vulnerable part
-  lda #$6c
-  sta $1000
-  lda #$ff
-  sta $1001
-  lda #$02
-  sta $1002
-  
-  lda #$41
-  sta $0200
-  lda #$42
-  sta $02ff
-  
-  jmp $1000
+  inc 0
+  ; Wait for keyup
+  keyup_a_loop:
+  lda #$1
+  sta $4016
+  lda #$0
+  sta $4016
+  lda $4016
+  and #1
+  bne keyup_a_loop
   jmp mainLoop
+  
+  b_button:
+  lda 0
+  ldx 1
+  ldy 2
+  cpy #2
+  jsr choosePage
+  lda #0
+  sta 0
+  jsr crossPage
+  keyup_b_loop:
+  lda #$1
+  sta $4016
+  lda #$0
+  sta $4016
+  lda $4016
+  lda $4016
+  and #1
+  bne keyup_b_loop
+  jmp mainLoop
+  
+  start_button:
+  ; Vulnerable part
+  lda #$6c; JmpInd
+  sta 0
+  
+  lda #0
+  ldx 1
+  ldy 2
+  jsr choosePage
+  
+  lda #$c0
+  ldy 2
+  ldx 1
+  inx
+  bne dont_increase_page
+  iny
+  dont_increase_page:
+  jsr choosePage
+  jmp 0
 .endproc
 
 
@@ -156,6 +197,30 @@ mainLoop:
   rts
 .endproc
 
+.proc crossPage
+  inc 1
+  bne cross_page_end
+  inc 2
+  lda 2
+  cmp #4
+  beq jmp_end
+  cross_page_end:
+  rts
+  jmp_end:
+  jmp end
+.endproc
+
+.proc choosePage
+  cpy $3
+  beq page_300
+  sta $0200,X
+  jmp page_condition_end
+  page_300:
+  sta $0300,X
+  page_condition_end:
+  rts
+.endproc
+
 .proc drawHelloWorld
   jsr cls
 
@@ -174,54 +239,10 @@ mainLoop:
   sta PPUDATA
   dex
   bne :-
-
-  ; load source and destination addresses
-  lda #>helloWorld
-  sta 1
-  lda #<helloWorld
-  sta 0
-  lda #$20
-  sta 3
-  lda #$62
-  sta 2
-  ; fall through
-.endproc
-.proc printMsg
-dstLo = 2
-dstHi = 3
-src = 0
-  lda dstHi
-  sta PPUADDR
-  lda dstLo
-  sta PPUADDR
-  ldy #0
-loop:
-  lda (src),y
-  beq done
-  iny
-  bne :+
-  inc src+1
-:
-  cmp #10
-  beq newline
-  sta PPUDATA
-  bne loop
-newline:
-  lda #32
-  clc
-  adc dstLo
-  sta dstLo
-  lda #0
-  adc dstHi
-  sta dstHi
-  sta PPUADDR
-  lda dstLo
-  sta PPUADDR
-  jmp loop
 done:
   rts
 .endproc
 
 .segment "RODATA"
-helloWorld:
+flag:
   .byt "FLAG-{db54945cfbee518299963df092f7e98f26ac4754}",0
