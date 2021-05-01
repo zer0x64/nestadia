@@ -451,9 +451,9 @@ pub mod test {
     use crate::Cartridge;
 
     const ROM_HORIZONTAL: &'static [u8] =
-        include_bytes!("../../../server/default_roms/1.Branch_Basics.nes");
+        include_bytes!("../../../default_roms/1.Branch_Basics.nes");
     const ROM_VERTICAL: &'static [u8] =
-        include_bytes!("../../../server/default_roms/Alter_Ego.nes");
+        include_bytes!("../../../default_roms/Alter_Ego.nes");
 
     struct MockEmulator {
         cartridge: Cartridge,
