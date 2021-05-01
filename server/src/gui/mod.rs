@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 #[cfg(feature = "debugger")]
 use iced::{Application, Settings};
-use nestadia_core::{Emulator, ExecutionMode};
+use nestadia_core::Emulator;
 
 mod rgb_value_table;
 mod sdl_window;
@@ -35,7 +35,7 @@ pub fn gui_start(rom: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let rom = std::fs::read(rom).unwrap();
 
     let emulation_state = std::sync::Arc::new(std::sync::RwLock::new(EmulationState {
-        emulator: Emulator::new(&rom, None, ExecutionMode::Ring3)?,
+        emulator: Emulator::new(&rom, None, nestadia_core::ExecutionMode::Ring3)?,
         is_running: true,
     }));
 
