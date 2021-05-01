@@ -320,8 +320,8 @@ impl Ppu {
 
         let pat_x = 7 - x % 8;
         let pat_y = y % 8;
-        let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
-        let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
+        let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
+        let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
 
         let pat = hi << 1 | lo;
 
@@ -452,8 +452,7 @@ pub mod test {
 
     const ROM_HORIZONTAL: &'static [u8] =
         include_bytes!("../../../default_roms/1.Branch_Basics.nes");
-    const ROM_VERTICAL: &'static [u8] =
-        include_bytes!("../../../default_roms/Alter_Ego.nes");
+    const ROM_VERTICAL: &'static [u8] = include_bytes!("../../../default_roms/Alter_Ego.nes");
 
     struct MockEmulator {
         cartridge: Cartridge,
