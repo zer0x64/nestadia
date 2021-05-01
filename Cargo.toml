@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "./nestadia-core",
+    "./nestadia-gui",
+    "./nestadia-server",
+]
