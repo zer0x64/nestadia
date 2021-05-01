@@ -217,4 +217,8 @@ impl Mapper for Mapper004 {
             self.irq_active = true;
         }
     }
+
+    fn get_sram(&self) -> Option<&[u8]> {
+        Some(&self.ram_data)
+    }
 }
