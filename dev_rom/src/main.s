@@ -73,9 +73,6 @@ vwait2:
   bit PPUSTATUS
   bpl vwait2
 
-  ; Draw HELLO WORLD text
-  ;jsr drawHelloWorld
-
   ; Turn screen on
   lda #0
   sta PPUSCROLL
@@ -86,12 +83,23 @@ vwait2:
   sta PPUMASK
   
   ; Set initial data
-  lda #0
-  sta 0
-  lda #$0
-  sta 1
+  lda #0 
+  sta 0  ; value
+  lda #$0   
+  sta 1  ; Address LSB
   lda #$2
-  sta 2
+  sta 2  ; Address MSB
+  lda #0
+  sta 3 ; Background switcher
+  
+  lda #$11
+  sta $10  ; Background color1
+  lda #$2A
+  sta $11  ; Background color2
+  lda #$2C
+  sta $12  ; Background color3
+  lda #$25
+  sta $13  ; Background color4
 
 mainLoop:
   ; Input feed
@@ -119,6 +127,7 @@ mainLoop:
   
   a_button:
   inc 0
+  jsr changePallette
   ; Wait for keyup
   keyup_a_loop:
   lda #$1
@@ -138,6 +147,7 @@ mainLoop:
   lda #0
   sta 0
   jsr crossPage
+  jsr changePallette
   keyup_b_loop:
   lda #$1
   sta $4016
@@ -220,26 +230,27 @@ mainLoop:
   rts
 .endproc
 
-.proc drawHelloWorld
-  jsr cls
-
+.proc changePallette
+  lda PPUSTATUS
+  and #$80
+  beq changePallette
+   
   ; set monochrome palette
   lda #$3F
   sta PPUADDR
   lda #$00
   sta PPUADDR
-  ldx #8
-:
-  lda #$17
+   
+  lda #3; Mask
+  and 3
+  tax
+  lda $10,X
   sta PPUDATA
-  lda #$38
-  sta PPUDATA
-  sta PPUDATA
-  sta PPUDATA
-  dex
-  bne :-
-done:
+  
+  inc 3
+  
   rts
+   
 .endproc
 
 .segment "RODATA"
