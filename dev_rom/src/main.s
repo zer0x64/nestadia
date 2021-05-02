@@ -72,7 +72,7 @@ wait_before_nametable:
   sta PPUDATA
   jmp beer_end
   
-  beers_away:
+beers_away:
   lda #1
   sta PPUDATA
   lda #0
