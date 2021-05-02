@@ -14,25 +14,81 @@
 .segment "ZEROPAGE"
 
 .segment "VECTORS"
-  .addr nmi, reset, irq
+.addr nmi, reset, irq
 
 .segment "CODE"
 end:
+  bit PPUSTATUS
+  bpl end
+  
+  lda #$3F
+  sta PPUADDR
+  lda #$01
+  sta PPUADDR
+  
+  lda #$0f
+  sta PPUDATA
+  lda #$28
+  sta PPUDATA
+  lda #$28
+  sta PPUDATA
+  
+  lda #0
+  sta $21; state
+ 
+start_timer:
   lda #0
   sta $20; Frame counter
 
 timer:
-  lda PPUSTATUS
-  and #$80
-  beq timer
+  bit PPUSTATUS
+  bpl timer
   
   inc $20
   lda $20
   
   cmp #$30
   bne timer
+ 
+wait_before_nametable:
+  bit PPUSTATUS
+  bpl wait_before_nametable
+  lda #$21
+  sta PPUADDR
+  lda #$ce
+  sta PPUADDR
+  
+  lda $21
+  cmp $1
+  beq beers_away
+  
+  lda #0
+  sta PPUDATA
+  lda #1
+  sta PPUDATA
+  lda #2
+  sta PPUDATA
+  lda #0
+  sta PPUDATA
+  jmp beer_end
+  
+  beers_away:
+  lda #1
+  sta PPUDATA
+  lda #0
+  sta PPUDATA
+  lda #0
+  sta PPUDATA
+  lda #2
+  sta PPUDATA
+  
+  beer_end:
+  lda #1
+  eor $21
+  sta $21
   jsr changePallette
-  jmp end
+  
+  jmp start_timer
 
 ; we don't use irqs yet
 .proc irq
@@ -90,7 +146,7 @@ vwait2:
   lda #0
   sta PPUSCROLL
   sta PPUSCROLL
-  lda #VBLANK_NMI|BG_1000
+  lda #VBLANK_NMI|BG_0000
   sta PPUCTRL
   lda #BG_ON
   sta PPUMASK
@@ -140,6 +196,9 @@ mainLoop:
   
   a_button:
   inc 0
+  a_button_wait_ppu:
+  bit PPUSTATUS
+  bpl a_button_wait_ppu
   jsr changePallette
   ; Wait for keyup
   keyup_a_loop:
@@ -160,6 +219,9 @@ mainLoop:
   lda #0
   sta 0
   jsr crossPage
+  b_button_wait_ppu:
+  bit PPUSTATUS
+  bpl b_button_wait_ppu
   jsr changePallette
   keyup_b_loop:
   lda #$1
@@ -243,11 +305,7 @@ mainLoop:
   rts
 .endproc
 
-.proc changePallette
-  lda PPUSTATUS
-  and #$80
-  beq changePallette
-   
+.proc changePallette   
   ; set monochrome palette
   lda #$3F
   sta PPUADDR
