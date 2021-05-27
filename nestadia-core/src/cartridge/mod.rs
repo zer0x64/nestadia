@@ -6,10 +6,10 @@ mod mapper_003;
 mod mapper_004;
 mod mapper_066;
 
-use core::convert::TryFrom as _;
-use alloc::vec::Vec;
-use alloc::vec;
 use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::convert::TryFrom as _;
 
 use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;

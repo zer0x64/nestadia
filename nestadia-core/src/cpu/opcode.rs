@@ -86,8 +86,6 @@ pub enum Opcode {
     AdcAbsX = 0x7d,
     RorAbsX = 0x7e,
 
-    FlagAcc = 0x80,
-
     StaIndX = 0x81,
     StyZp = 0x84,
     StaZp = 0x85,
@@ -258,8 +256,6 @@ impl Opcode {
             Opcode::AdcAbsY => 4,
             Opcode::AdcAbsX => 4,
             Opcode::RorAbsX => 7,
-
-            Opcode::FlagAcc => 4,
 
             Opcode::StaIndX => 6,
             Opcode::StyZp => 3,
@@ -432,8 +428,6 @@ impl Opcode {
             Opcode::AdcAbsY => AddressingMode::AbsoluteY,
             Opcode::AdcAbsX => AddressingMode::AbsoluteX,
             Opcode::RorAbsX => AddressingMode::AbsoluteX,
-
-            Opcode::FlagAcc => AddressingMode::Accumulator,
 
             Opcode::StaIndX => AddressingMode::IndirectX,
             Opcode::StyZp => AddressingMode::ZeroPage,

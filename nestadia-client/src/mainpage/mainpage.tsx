@@ -18,7 +18,6 @@ class MainPage extends React.Component<{setAppState: Function, setEmulatorMode: 
                 <p>Welcome to Nestadia!</p>
                 <Button variant="contained" color="secondary" onClick={() => {this.props.setEmulatorMode(EmulatorMode.Normal); this.props.setAppState(AppState.EmulatorPage)}}>Try the emulator with a free ROM!</Button>
                 <Button variant="contained" color="primary" onClick={() => {this.props.setEmulatorMode(EmulatorMode.Custom); this.props.setAppState(AppState.EmulatorPage)}}>Try the emulator with your own ROM!</Button><br></br>
-                <a style={linkSize} href="javascript:void()" onClick={() => {this.props.setAppState(AppState.LoginPage)}}>Dev login</a>
             </div>
         )
     }

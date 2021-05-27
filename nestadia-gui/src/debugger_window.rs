@@ -11,7 +11,7 @@ use iced::{
     Text,
 };
 
-use nestadia_core::{Emulator, ExecutionMode};
+use nestadia_core::Emulator;
 
 use super::{EmulationState, NES_HEIGHT, NES_WIDTH};
 
@@ -41,7 +41,7 @@ impl Application for NestadiaIced {
     fn new(flags: NestadiaIcedRunFlags) -> (NestadiaIced, Command<Self::Message>) {
         let rom = fs::read(flags.rom_path).unwrap();
         let emulation_state = Arc::new(RwLock::new(EmulationState {
-            emulator: Emulator::new(&rom, None, ExecutionMode::Ring3).unwrap(),
+            emulator: Emulator::new(&rom, None).unwrap(),
             is_running: false,
         }));
 

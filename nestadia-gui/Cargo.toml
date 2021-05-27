@@ -7,7 +7,6 @@ edition = "2018"
 [features]
 default = ["debugger"]
 debugger = ["nestadia-core/debugger"]
-true-flags = ["nestadia-core/true-flags"]
 
 [dependencies]
 nestadia-core = { path = "../nestadia-core" }

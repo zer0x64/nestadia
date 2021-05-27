@@ -6,7 +6,6 @@ edition = "2018"
 
 [features]
 default = []
-true-flags = ["nestadia-core/true-flags"]
 
 [dependencies]
 nestadia-core = { path = "../nestadia-core" }

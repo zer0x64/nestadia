@@ -8,24 +8,11 @@ use bitflags::bitflags;
 
 use self::opcode::Opcode;
 use crate::bus::CpuBus;
-use crate::ExecutionMode;
 
 const STACK_BASE: u16 = 0x0100;
 const PC_START: u16 = 0xFFFC;
 const IRQ_HANDLER: u16 = 0xFFFE;
 const NMI_HANDLER: u16 = 0xFFFA;
-
-#[cfg(not(feature = "true-flags"))]
-const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-debug.txt");
-
-#[cfg(feature = "true-flags")]
-const FLAG3: &[u8] = include_bytes!("../../../flags/flag3-prod.txt");
-
-#[cfg(not(feature = "true-flags"))]
-const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-debug.txt");
-
-#[cfg(feature = "true-flags")]
-const FLAG4: &[u8] = include_bytes!("../../../flags/flag4-prod.txt");
 
 bitflags! {
     pub struct StatusRegister: u8 {
@@ -49,12 +36,10 @@ pub struct Cpu {
     pub pc: u16,
     pub cycles: u8,
     pub status_register: StatusRegister,
-
-    execution_mode: ExecutionMode,
 }
 
-impl Cpu {
-    pub fn new(execution_mode: ExecutionMode) -> Self {
+impl Default for Cpu {
+    fn default() -> Self {
         Self {
             a: 0,
             x: 0,
@@ -63,10 +48,11 @@ impl Cpu {
             pc: 0,
             cycles: 0,
             status_register: StatusRegister::empty(),
-            execution_mode,
         }
     }
+}
 
+impl Cpu {
     pub fn reset(&mut self, bus: &mut CpuBus<'_>) {
         self.a = 0;
         self.x = 0;
@@ -130,17 +116,6 @@ impl Cpu {
                 }
             };
             self.pc = self.pc.wrapping_add(1);
-
-            // print!(
-            //     ">>>> {:?} {:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}\r\n",
-            //     opcode,
-            //     self.pc.wrapping_sub(1),
-            //     self.a,
-            //     self.x,
-            //     self.y,
-            //     self.status_register.bits,
-            //     self.st
-            // );
 
             match &opcode {
                 Opcode::Brk => {
@@ -532,16 +507,6 @@ impl Cpu {
                     let op = bus.read(addr);
                     let result = self.inst_ror(op);
                     bus.write(addr, result);
-                }
-
-                Opcode::FlagAcc => {
-                    let flag = match self.execution_mode {
-                        ExecutionMode::Ring0 => FLAG4,
-                        ExecutionMode::Ring3 => FLAG3,
-                    };
-
-                    let index = (self.a as usize) % flag.len();
-                    self.a = flag[index];
                 }
 
                 Opcode::StaIndX => {
@@ -1651,7 +1616,7 @@ mod tests {
         rom[16 + 0x7FFD] = 0x40;
 
         let mut emu = MockEmulator {
-            cpu: Cpu::new(ExecutionMode::Ring3),
+            cpu: Default::default(),
             controller1: 0,
             controller2: 0,
             controller1_state: false,

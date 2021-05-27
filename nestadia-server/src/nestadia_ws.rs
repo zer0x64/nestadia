@@ -15,7 +15,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
-use nestadia_core::{Emulator, ExecutionMode, RomParserError};
+use nestadia_core::{Emulator, RomParserError};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -34,13 +34,8 @@ impl core::fmt::Display for EmulationError {
 impl std::error::Error for EmulationError {}
 
 pub enum EmulationState {
-    Waiting {
-        exec_mode: ExecutionMode,
-    }, // wait for a user-provided ROM
-    Ready {
-        rom: Vec<u8>,
-        exec_mode: ExecutionMode,
-    }, // ready to start immediately
+    Waiting,                        // wait for a user-provided ROM
+    Ready { rom: Vec<u8> },         // ready to start immediately
     Started(Sender<EmulatorInput>), // up and running
 }
 
@@ -88,9 +83,9 @@ impl Actor for NestadiaWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        if let EmulationState::Ready { rom, exec_mode } = &self.state {
+        if let EmulationState::Ready { rom } = &self.state {
             // At this point, ROMs are hardcoded, so this shouldn't fail
-            let sender = start_emulation(ctx, rom, *exec_mode).unwrap();
+            let sender = start_emulation(ctx, rom).unwrap();
             self.state = EmulationState::Started(sender);
         }
 
@@ -125,7 +120,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
             // If we receive something here, it's the controller input.
             Ok(ws::Message::Binary(bin)) => {
                 match &mut self.state {
-                    EmulationState::Waiting { exec_mode } => {
+                    EmulationState::Waiting => {
                         // Received chunk of ROM
                         if self.custom_rom.len() == 0 {
                             // First 4 bytes are used to specify the ROM's size
@@ -139,7 +134,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                         }
 
                         if self.custom_rom.len() == self.custom_rom_len {
-                            match start_emulation(ctx, &self.custom_rom, *exec_mode) {
+                            match start_emulation(ctx, &self.custom_rom) {
                                 Ok(sender) => self.state = EmulationState::Started(sender),
                                 // If there's an error, just ignore it and wait for a valid ROM
                                 Err(_) => (),
@@ -183,7 +178,6 @@ impl Handler<Frame> for NestadiaWs {
 fn start_emulation(
     ctx: &mut ws::WebsocketContext<NestadiaWs>,
     rom: &[u8],
-    execution_mode: ExecutionMode,
 ) -> Result<Sender<EmulatorInput>, Box<dyn std::error::Error>> {
     // Read save file
     let rom_hash = blake3::hash(rom).to_hex().to_string();
@@ -197,7 +191,7 @@ fn start_emulation(
         None
     };
 
-    let mut emulator = Emulator::new(rom, save_data, execution_mode).map_err(EmulationError)?;
+    let mut emulator = Emulator::new(rom, save_data).map_err(EmulationError)?;
 
     let (input_sender, input_receiver) = channel();
     let (frame_sender, frame_receiver) = channel();

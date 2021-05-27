@@ -9,20 +9,14 @@ mod cartridge;
 mod cpu;
 mod ppu;
 
+pub use cartridge::RomParserError;
 pub use cpu::Cpu;
 pub use ppu::Ppu;
-pub use cartridge::RomParserError;
 
 use crate::cartridge::Cartridge;
 use crate::ppu::PpuFrame;
 
 pub const RAM_SIZE: u16 = 0x0800;
-
-#[derive(Clone, Debug, Copy)]
-pub enum ExecutionMode {
-    Ring0,
-    Ring3,
-}
 
 pub struct Emulator {
     // Cartridge is shared by CPU (PRG) and PPU (CHR)
@@ -47,15 +41,11 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(
-        rom: &[u8],
-        save_data: Option<&[u8]>,
-        execution_mode: ExecutionMode,
-    ) -> Result<Self, RomParserError> {
+    pub fn new(rom: &[u8], save_data: Option<&[u8]>) -> Result<Self, RomParserError> {
         let mut emulator = Self {
             cartridge: Cartridge::load(rom, save_data)?,
 
-            cpu: Cpu::new(execution_mode),
+            cpu: Default::default(),
             controller1: 0,
             controller2: 0,
             controller1_state: false,
@@ -127,7 +117,11 @@ impl Emulator {
 
     #[cfg(feature = "debugger")]
     #[allow(unused_variables)] // FIXME
-    pub fn disassemble(&self, start: u16, end: u16) -> alloc::vec::Vec<(u16, alloc::string::String)> {
+    pub fn disassemble(
+        &self,
+        start: u16,
+        end: u16,
+    ) -> alloc::vec::Vec<(u16, alloc::string::String)> {
         self.cartridge.disassemble()
     }
 

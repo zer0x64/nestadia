@@ -418,48 +418,83 @@ impl Ppu {
                 for i in 0..16 {
                     tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
                 }
-                self.dump_tile(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
-
+                self.dump_tile(
+                    sprite_palette,
+                    flip_horizontal,
+                    flip_vertical,
+                    tile,
+                    tile_x,
+                    tile_y,
+                );
             } else {
                 // 8x16 sprites
                 if !flip_vertical {
                     for i in 0..16 {
                         tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
                     }
-                    self.dump_tile(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
+                    self.dump_tile(
+                        sprite_palette,
+                        flip_horizontal,
+                        flip_vertical,
+                        tile,
+                        tile_x,
+                        tile_y,
+                    );
 
                     for i in 0..16 {
-                        tile[i as usize] = bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
+                        tile[i as usize] =
+                            bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
                     }
-                    self.dump_tile(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y + 8);
+                    self.dump_tile(
+                        sprite_palette,
+                        flip_horizontal,
+                        flip_vertical,
+                        tile,
+                        tile_x,
+                        tile_y + 8,
+                    );
                 } else {
                     for i in 0..16 {
-                        tile[i as usize] = bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
+                        tile[i as usize] =
+                            bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
                     }
-                    self.dump_tile(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y);
+                    self.dump_tile(
+                        sprite_palette,
+                        flip_horizontal,
+                        flip_vertical,
+                        tile,
+                        tile_x,
+                        tile_y,
+                    );
 
                     for i in 0..16 {
                         tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
                     }
-                    self.dump_tile(sprite_palette, flip_horizontal, flip_vertical, tile, tile_x, tile_y + 8);
+                    self.dump_tile(
+                        sprite_palette,
+                        flip_horizontal,
+                        flip_vertical,
+                        tile,
+                        tile_x,
+                        tile_y + 8,
+                    );
                 }
-
             }
         }
     }
 
-    fn dump_tile(&mut self, sprite_palette: [u8; 4], x_flip: bool, y_flip: bool, tile: [u8; 16], tile_x: u16, tile_y: u16) {
-        let flip_vertical = if y_flip {
-            |x| 7 - x
-        } else {
-            |x| x
-        };
+    fn dump_tile(
+        &mut self,
+        sprite_palette: [u8; 4],
+        x_flip: bool,
+        y_flip: bool,
+        tile: [u8; 16],
+        tile_x: u16,
+        tile_y: u16,
+    ) {
+        let flip_vertical = if y_flip { |x| 7 - x } else { |x| x };
 
-        let flip_horizontal = if x_flip {
-            |y| 7 - y
-        } else {
-            |y| y
-        };
+        let flip_horizontal = if x_flip { |y| 7 - y } else { |y| y };
 
         for y in 0..8 {
             let byte_lo = tile[y as usize];

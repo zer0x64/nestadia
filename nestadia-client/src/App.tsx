@@ -1,18 +1,16 @@
 import React, { CSSProperties } from 'react';
 import './App.css';
 import AppState from './appstate';
-import DevDashboard from './devdashboard/devdashboard';
 import Emulator from './emulator/emulator';
 import EmulatorMode from './emulator/emulatorMode';
-import LoginPage from './login/login';
 import MainPage from './mainpage/mainpage';
 import logo from "./logo-nestadia-background.png";
 
-class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mode: EmulatorMode}> {
+class App extends React.Component<{}, {state: AppState, mode: EmulatorMode}> {
   constructor(props: any) {
     super(props);
 
-    this.state = {state: AppState.MainPage, isLoggedIn: false, mode: EmulatorMode.Normal}
+    this.state = {state: AppState.MainPage, mode: EmulatorMode.Normal}
   }
 
   setAppState(state: AppState) {
@@ -23,10 +21,6 @@ class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mod
     this.setState({mode: mode})
   }
 
-  setLoggedIn(isLoggedIn: boolean) {
-    this.setState({isLoggedIn: isLoggedIn})
-  }
-
   componentDidMount() {
     
   }
@@ -35,12 +29,6 @@ class App extends React.Component<{}, {state: AppState, isLoggedIn: boolean, mod
     let content;
     if(this.state.state == AppState.MainPage) {
       content = (<MainPage setAppState={this.setAppState.bind(this)} setEmulatorMode={this.setEmulatorMode.bind(this)}></MainPage>)
-    }
-    else if(this.state.state == AppState.LoginPage) {
-      content = (<LoginPage setAppState={this.setAppState.bind(this)} setLoggedIn={this.setLoggedIn.bind(this)}></LoginPage>)
-    }
-    else if(this.state.state == AppState.DevDashboard) {
-      content = (<DevDashboard setAppState={this.setAppState.bind(this)} setEmulatorMode={this.setEmulatorMode.bind(this)}></DevDashboard>)
     }
     else {
       content = (<Emulator setAppState={this.setAppState.bind(this)} mode={this.state.mode}></Emulator>)
