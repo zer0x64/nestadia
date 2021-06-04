@@ -1,8 +1,9 @@
 [workspace]
 members = [
     "./nestadia-core",
-    "./nestadia-gui",
+#    "./nestadia-gui", // Deprecated
     "./nestadia-server",
+    "./nestadia-wasm",
 ]
 
 [profile.dev]
