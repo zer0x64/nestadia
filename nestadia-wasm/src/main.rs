@@ -4,11 +4,11 @@ extern crate bitflags;
 use nestadia_core::Emulator;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
-use yew::ChangeData;
 use yew::{
     prelude::*,
     services::reader::{FileData, ReaderService, ReaderTask},
 };
+use yew::{virtual_dom::VNode, ChangeData};
 
 mod rgb_value_table;
 
@@ -30,15 +30,15 @@ bitflags! {
 
 enum MainMsg {
     /// This is the message that triggers when a ROM is selected
-    ChooseRom(ChangeData),
+    ChosenRom(ChangeData),
 
     // This is the callback when the ROM has done loading into the browser
     LoadedRom(FileData),
 }
 
-/// Main Component, used to chose the ROM to run.
+/// Main Component, used to choose the ROM to run.
 struct MainComponent {
-    rom: Option<Vec<u8>>,
+    emulator_component: VNode,
     link: ComponentLink<Self>,
 
     reader_tasks: Vec<ReaderTask>,
@@ -50,7 +50,7 @@ impl Component for MainComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         Self {
-            rom: None,
+            emulator_component: html! {},
             link,
 
             reader_tasks: Vec::new(),
@@ -60,7 +60,7 @@ impl Component for MainComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             // When the component receive the file, it loads it in memory
-            MainMsg::ChooseRom(ChangeData::Files(files)) => {
+            MainMsg::ChosenRom(ChangeData::Files(files)) => {
                 if let Some(f) = files.get(0) {
                     self.reader_tasks.push(
                         ReaderService::read_file(f, self.link.callback(MainMsg::LoadedRom))
@@ -71,9 +71,10 @@ impl Component for MainComponent {
                 false
             }
 
-            // When the ROM is loaded, store in in the component
+            // When the ROM is loaded, store it in the component
             MainMsg::LoadedRom(f) => {
-                self.rom = Some(f.content);
+                self.emulator_component =
+                    html! {<EmulatorComponent rom=f.content></EmulatorComponent>};
                 true
             }
             _ => false,
@@ -85,17 +86,10 @@ impl Component for MainComponent {
     }
 
     fn view(&self) -> Html {
-        // Create the emulator if a ROM is selected
-        let emulator_component = if let Some(rom) = &self.rom {
-            html! { <EmulatorComponent rom=rom.clone()></EmulatorComponent> }
-        } else {
-            html! {}
-        };
-
         html! {
             <div>
-                {emulator_component}
-                <input type="file" onchange=self.link.callback(MainMsg::ChooseRom)/>
+                {self.emulator_component.clone()}
+                <input type="file" onchange=self.link.callback(MainMsg::ChosenRom)/>
             </div>
         }
     }
