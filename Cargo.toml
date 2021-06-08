@@ -4,6 +4,7 @@ members = [
 #    "./nestadia-gui", // Deprecated
     "./nestadia-server",
     "./nestadia-wasm",
+    "./nestadia-wgpu",
 ]
 
 [profile.dev]

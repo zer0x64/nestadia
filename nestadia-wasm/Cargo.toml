@@ -13,7 +13,7 @@ nestadia-core = { path = "../nestadia-core" }
 bitflags = "1.2.1"
 
 [dependencies.web-sys]
-version = "0.3.51"
+version = "0.3.50"
 features = [
     "HtmlCanvasElement",
     "CanvasRenderingContext2d",
