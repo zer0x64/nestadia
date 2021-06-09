@@ -24,8 +24,8 @@ use rgb_value_table::RGB_VALUE_TABLE;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(parse(from_os_str), default_value = "../default_roms/flappybird.nes")]
-    rom: PathBuf,
+    #[structopt(parse(from_os_str))]
+    rom: Option<PathBuf>,
 }
 
 bitflags! {
@@ -449,18 +449,25 @@ fn main() {
     // Parse CLI options
     let opt = Opt::from_args();
 
-    // Read the ROM
-    let rom = std::fs::read(opt.rom).expect("Could not read the ROM file");
-
-    // Create the emulator
-    let emulator = Emulator::new(&rom, None).expect("Rom parsing failed");
-
     // Create the window
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Nestadia")
         .build(&event_loop)
         .unwrap();
+
+    // Find ROM path
+    let path = if let Some(p) = opt.rom {
+        p
+    } else {
+        native_dialog::FileDialog::new().add_filter("NES roms", &["nes"]).show_open_single_file().unwrap().expect("No rom passed!")
+    };
+
+    // Read the ROM
+    let rom = std::fs::read(path).expect("Could not read the ROM file");
+
+    // Create the emulator
+    let emulator = Emulator::new(&rom, None).expect("Rom parsing failed");
 
     // Wait until WGPU is ready
     let mut state = block_on(State::new(&window, emulator));
