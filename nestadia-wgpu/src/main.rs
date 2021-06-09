@@ -143,12 +143,15 @@ impl State {
             .await
             .unwrap();
 
+        // Note: Present mode: Immediate is there to disable Vsync since it breaks the timing.
+        // We wouldn't have to do this if we were making an actual game, but in the case of a NES emulator,
+        // logic is tied to the framerate.
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: adapter.get_swap_chain_preferred_format(&surface).unwrap(),
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::Immediate,
         };
 
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
@@ -484,7 +487,7 @@ fn main() {
             }
         }
 
-        // If renderer is free, sync with 60FPS and request the next frame.
+        // If renderer is free, sync with 60 FPS and request the next frame.
         // Note that this locks FPS at 60, however logic and FPS are bound together on the NES so this is normal.
         Event::RedrawEventsCleared => {
             let elapsed_time = state.last_frame_time.elapsed();
