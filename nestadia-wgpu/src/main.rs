@@ -4,6 +4,8 @@ use wgpu::util::DeviceExt;
 
 use std::{
     convert::TryFrom,
+    fs::OpenOptions,
+    io::{Read, Write},
     time::{Duration, Instant},
 };
 
@@ -72,7 +74,7 @@ const NUM_PIXELS: usize = 256 * 240;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 2],
-    coord: [f32; 2],
+    tex_coord: [f32; 2],
 }
 
 impl Vertex {
@@ -298,19 +300,19 @@ impl State {
         let vertices = [
             Vertex {
                 position: [-1.0, -1.0],
-                coord: [0.0, 1.0],
+                tex_coord: [0.0, 1.0],
             },
             Vertex {
                 position: [-1.0, 1.0],
-                coord: [0.0, 0.0],
+                tex_coord: [0.0, 0.0],
             },
             Vertex {
                 position: [1.0, -1.0],
-                coord: [1.0, 1.0],
+                tex_coord: [1.0, 1.0],
             },
             Vertex {
                 position: [1.0, 1.0],
-                coord: [1.0, 0.0],
+                tex_coord: [1.0, 0.0],
             },
         ];
 
@@ -357,9 +359,44 @@ impl State {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    /// TODO: Controller inputs should technically be handled here
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    /// This is where we handle controller inputs
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                // Handle controller inputs
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(key_code),
+                    ..
+                } => {
+                    if let Ok(f) = ControllerState::try_from(key_code) {
+                        self.controller1.insert(f);
+
+                        self.emulator.set_controller1(self.controller1.bits());
+                        true
+                    } else {
+                        false
+                    }
+                }
+
+                KeyboardInput {
+                    state: ElementState::Released,
+                    virtual_keycode: Some(key_code),
+                    ..
+                } => {
+                    if let Ok(f) = ControllerState::try_from(key_code) {
+                        self.controller1.remove(f);
+
+                        self.emulator.set_controller1(self.controller1.bits());
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     /// Update the game state
@@ -446,6 +483,19 @@ impl State {
 
         Ok(())
     }
+
+    fn save_data(&self, save_path: &PathBuf) {
+        if let Some(save_data) = self.emulator.get_save_data() {
+            if let Ok(mut f) = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(&save_path)
+            {
+                let _ = f.write_all(save_data);
+            }
+        }
+    }
 }
 
 fn main() {
@@ -463,14 +513,30 @@ fn main() {
     let path = if let Some(p) = opt.rom {
         p
     } else {
-        native_dialog::FileDialog::new().add_filter("NES roms", &["nes"]).show_open_single_file().unwrap().expect("No rom passed!")
+        native_dialog::FileDialog::new()
+            .add_filter("NES roms", &["nes"])
+            .show_open_single_file()
+            .unwrap()
+            .expect("No rom passed!")
     };
+
+    let mut save_path = path.clone();
+    save_path.set_extension("sav");
 
     // Read the ROM
     let rom = std::fs::read(path).expect("Could not read the ROM file");
 
+    // Read the save file
+    let mut save_buf = Vec::new();
+    let save_file = if let Ok(mut file) = std::fs::File::open(&save_path) {
+        let _ = file.read_to_end(&mut save_buf);
+        Some(save_buf.as_slice())
+    } else {
+        None
+    };
+
     // Create the emulator
-    let emulator = Emulator::new(&rom, None).expect("Rom parsing failed");
+    let emulator = Emulator::new(&rom, save_file).expect("Rom parsing failed");
 
     // Wait until WGPU is ready
     let mut state = block_on(State::new(&window, emulator));
@@ -505,7 +571,11 @@ fn main() {
             if !state.input(event) {
                 match event {
                     // Exit if X button is clicked
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::CloseRequested => {
+                        state.save_data(&save_path);
+
+                        *control_flow = ControlFlow::Exit
+                    }
 
                     // Update rendering if window is resized
                     WindowEvent::Resized(physical_size) => state.resize(*physical_size),
@@ -519,31 +589,10 @@ fn main() {
                             state: ElementState::Pressed,
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
-                        } => *control_flow = ControlFlow::Exit,
-
-                        // Handle controller inputs
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(key_code),
-                            ..
                         } => {
-                            if let Ok(f) = ControllerState::try_from(key_code) {
-                                state.controller1.insert(f);
+                            state.save_data(&save_path);
 
-                                state.emulator.set_controller1(state.controller1.bits());
-                            };
-                        }
-
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(key_code),
-                            ..
-                        } => {
-                            if let Ok(f) = ControllerState::try_from(key_code) {
-                                state.controller1.remove(f);
-
-                                state.emulator.set_controller1(state.controller1.bits());
-                            };
+                            *control_flow = ControlFlow::Exit
                         }
                         _ => {}
                     },
@@ -552,5 +601,5 @@ fn main() {
             }
         }
         _ => {}
-    })
+    });
 }
