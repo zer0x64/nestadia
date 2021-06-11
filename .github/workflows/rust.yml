@@ -16,11 +16,37 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        lfs: true
+    - name: Install wasm32-unknown-unknown
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: false
+        components: rustfmt, clippy
     - name: Check formatting
-      run: cargo fmt --all -- --check
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+    - name: Clippy
+      uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-features
     - name: Build
-      run: cargo build --verbose
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --workspace --all-features --exclude nestadia-wasm
     - name: Build WASM
-      run: cargo build --package nestadia-core --target wasm32-unknown-unknown --verbose
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --all-features --package nestadia-wasm --target wasm32-unknown-unknown
     - name: Run tests
-      run: cargo test --verbose
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --exclude nestadia-wasm
