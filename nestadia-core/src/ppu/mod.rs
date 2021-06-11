@@ -330,12 +330,12 @@ impl Ppu {
             offset |= 0x400;
             (x_scrolled - 32 * 8) / 8
         };
-        let tile_y = if y_scrolled < (32 * 8) {
+        let tile_y = if y_scrolled < (30 * 8) {
             y_scrolled / 8
         } else {
             quadrant |= 2;
             offset |= 0x800;
-            (y_scrolled - 32 * 8) / 8
+            (y_scrolled - 30 * 8) / 8
         };
 
         let tile_idx = tile_y * 32 + tile_x + offset;
