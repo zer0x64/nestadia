@@ -1,3 +1,5 @@
+#![allow(clippy::identity_op)]
+
 use core::convert::TryFrom;
 
 use bitflags::bitflags;

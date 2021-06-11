@@ -118,15 +118,12 @@ impl Mapper for Mapper004 {
             0xA000..=0xBFFF => {
                 if (addr & 0x01) == 0 {
                     // Mirroring
-                    match self.mirroring {
-                        Mirroring::FourScreen => {
-                            self.mirroring = match data & 0x01 {
-                                0 => Mirroring::Vertical,
-                                1 => Mirroring::Horizontal,
-                                _ => unreachable!(),
-                            }
+                    if let Mirroring::FourScreen = self.mirroring {
+                        self.mirroring = match data & 0x01 {
+                            0 => Mirroring::Vertical,
+                            1 => Mirroring::Horizontal,
+                            _ => unreachable!(),
                         }
-                        _ => (),
                     }
                 } else {
                     // PRG RAM protect
@@ -190,7 +187,7 @@ impl Mapper for Mapper004 {
                     "Attempted to read CHR address w/o known mapping: {:#06x}",
                     addr
                 );
-                0 as usize
+                0_usize
             }
         }
     }

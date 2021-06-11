@@ -6,6 +6,7 @@ use std::{
     convert::TryFrom,
     fs::OpenOptions,
     io::{Read, Write},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -484,7 +485,7 @@ impl State {
         Ok(())
     }
 
-    fn save_data(&self, save_path: &PathBuf) {
+    fn save_data(&self, save_path: &Path) {
         if let Some(save_data) = self.emulator.get_save_data() {
             if let Ok(mut f) = OpenOptions::new()
                 .read(true)
@@ -583,19 +584,20 @@ fn main() {
                         state.resize(**new_inner_size)
                     }
 
-                    WindowEvent::KeyboardInput { input, .. } => match input {
-                        // Exit if ESC is pressed
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        } => {
-                            state.save_data(&save_path);
+                    // Exit if ESC is pressed
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                ..
+                            },
+                        ..
+                    } => {
+                        state.save_data(&save_path);
 
-                            *control_flow = ControlFlow::Exit
-                        }
-                        _ => {}
-                    },
+                        *control_flow = ControlFlow::Exit
+                    }
                     _ => {}
                 }
             }
