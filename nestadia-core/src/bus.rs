@@ -180,8 +180,7 @@ impl PpuBus<'_> {
             },
             Mirroring::Vertical => match idx {
                 0..=2047 => idx,
-                2048..=3071 => idx - 2048,
-                3072..=4095 => idx - 2048,
+                2048..=4095 => idx - 2048,
                 _ => unreachable!(),
             },
             Mirroring::FourScreen => idx,
