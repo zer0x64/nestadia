@@ -122,7 +122,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                 match &mut self.state {
                     EmulationState::Waiting => {
                         // Received chunk of ROM
-                        if self.custom_rom.len() == 0 {
+                        if self.custom_rom.is_empty() {
                             // First 4 bytes are used to specify the ROM's size
                             self.custom_rom_len =
                                 u32::from_le_bytes(bin[0..4].try_into().unwrap()) as usize;
@@ -134,16 +134,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NestadiaWs {
                         }
 
                         if self.custom_rom.len() == self.custom_rom_len {
-                            match start_emulation(ctx, &self.custom_rom) {
-                                Ok(sender) => self.state = EmulationState::Started(sender),
-                                // If there's an error, just ignore it and wait for a valid ROM
-                                Err(_) => (),
+                            // If there's an error, just ignore it and wait for a valid ROM
+                            if let Ok(sender) = start_emulation(ctx, &self.custom_rom) {
+                                self.state = EmulationState::Started(sender);
                             }
                         }
                     }
                     EmulationState::Started(input_sender) => {
                         // Received controller input
-                        if bin.len() > 0 {
+                        if !bin.is_empty() {
                             let _ = input_sender.send(EmulatorInput::Controller1(bin[0]));
                         };
                     }
@@ -168,9 +167,10 @@ impl Handler<Frame> for NestadiaWs {
         // }
 
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        match encoder.write_all(&msg.0) {
-            Ok(_) => ctx.binary(encoder.finish().unwrap()), // TODO: Send real frame
-            Err(_) => {} //Simply skip the frame if there's an error during compression
+
+        //Simply skip the frame if there's an error during compression
+        if encoder.write_all(&msg.0).is_ok() {
+            ctx.binary(encoder.finish().unwrap()); // TODO: Send real frame
         }
     }
 }

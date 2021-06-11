@@ -40,6 +40,7 @@ pub struct CpuBus<'a> {
 }
 
 impl<'a> CpuBus<'a> {
+    #[allow(clippy::too_many_arguments)] // it's fine, it's used by a macro
     pub fn borrow(
         controller1: &'a mut u8,
         controller2: &'a mut u8,

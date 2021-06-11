@@ -1391,7 +1391,7 @@ impl Cpu {
         let mut result = op >> 1;
 
         if carry {
-            result = result | 0x80;
+            result |= 0x80;
         }
 
         self.status_register.set(StatusRegister::Z, result == 0);
