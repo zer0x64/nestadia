@@ -1,5 +1,6 @@
 use super::{CartridgeReadTarget, Mapper, Mirroring};
 
+const MIRRORING_MASK: u8 = 0b00011;
 const CHR_MODE_MASK: u8 = 0b10000;
 const PRG_MODE_MASK: u8 = 0b01100;
 
@@ -106,11 +107,23 @@ impl Mapper for Mapper001 {
                 0x0000 => {
                     // Control register
                     self.control_register = self.load_register & 0x1F;
-                    match self.control_register & 0x03 {
+                    match self.control_register & MIRRORING_MASK {
                         0 => self.mirroring = Mirroring::OneScreenLower,
                         1 => self.mirroring = Mirroring::OneScreenUpper,
                         2 => self.mirroring = Mirroring::Vertical,
                         _ => self.mirroring = Mirroring::Horizontal,
+                    }
+
+                    match (self.control_register & PRG_MODE_MASK) >> 2 {
+                        2 => {
+                            // 16K mode, fix low bank
+                            self.prg_bank_selector_16_lo = 0;
+                        }
+                        3 => {
+                            // 16K mode, fix high bank
+                            self.prg_bank_selector_16_hi = self.prg_banks - 1;
+                        }
+                        _ => {}
                     }
                 }
                 0x2000 => {
@@ -130,13 +143,11 @@ impl Mapper for Mapper001 {
                     match (self.control_register & PRG_MODE_MASK) >> 2 {
                         2 => {
                             // 16K mode, fix low bank
-                            self.prg_bank_selector_16_lo = 0;
                             self.prg_bank_selector_16_hi = self.load_register & 0x0F;
                         }
                         3 => {
                             // 16K mode, fix high bank
                             self.prg_bank_selector_16_lo = self.load_register & 0x0F;
-                            self.prg_bank_selector_16_hi = self.prg_banks - 1;
                         }
                         _ => {
                             // 32K mode
