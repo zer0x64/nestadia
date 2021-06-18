@@ -1,5 +1,5 @@
 use futures::executor::block_on;
-use nestadia_core::Emulator;
+use nestadia::Emulator;
 use wgpu::util::DeviceExt;
 
 use std::{

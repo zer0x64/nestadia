@@ -15,7 +15,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use flate2::{write::GzEncoder, Compression};
 
-use nestadia_core::{Emulator, RomParserError};
+use nestadia::{Emulator, RomParserError};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);

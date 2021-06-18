@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate bitflags;
 
-use nestadia_core::Emulator;
+use nestadia::Emulator;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 use yew::{

@@ -9,10 +9,10 @@ members = []
 
 [features]
 default = ["debugger"]
-debugger = ["nestadia-core/debugger"]
+debugger = ["nestadia/debugger"]
 
 [dependencies]
-nestadia-core = { path = "../nestadia-core" }
+nestadia = { path = "../nestadia" }
 flexi_logger = "0.17.1"
 log = "0.4.14"
 structopt = "0.3.21"
