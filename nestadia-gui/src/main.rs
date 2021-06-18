@@ -5,7 +5,7 @@ use structopt::StructOpt;
 
 #[cfg(feature = "debugger")]
 use iced::{Application, Settings};
-use nestadia_core::Emulator;
+use nestadia::Emulator;
 
 mod rgb_value_table;
 mod sdl_window;

@@ -11,7 +11,7 @@ use iced::{
     Text,
 };
 
-use nestadia_core::Emulator;
+use nestadia::Emulator;
 
 use super::{EmulationState, NES_HEIGHT, NES_WIDTH};
 
