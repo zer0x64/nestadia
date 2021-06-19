@@ -1,5 +1,7 @@
 [package]
 name = "nestadia-server"
+description = "The server executable for the Nestadia NES emulator"
+license = "MIT OR Apache-2.0"
 version = "0.1.0"
 authors = ["zer0x64"]
 edition = "2018"
@@ -8,7 +10,7 @@ edition = "2018"
 default = []
 
 [dependencies]
-nestadia = { path = "../nestadia" }
+nestadia = { path = "../nestadia", version = "0.1" }
 flexi_logger = "0.17.1"
 log = "0.4.14"
 structopt = "0.3.21"
