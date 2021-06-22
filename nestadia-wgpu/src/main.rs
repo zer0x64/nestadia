@@ -21,10 +21,6 @@ use bitflags::bitflags;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod rgb_value_table;
-
-use rgb_value_table::RGB_VALUE_TABLE;
-
 #[derive(Debug, StructOpt)]
 struct Opt {
     #[structopt(parse(from_os_str))]
@@ -410,16 +406,7 @@ impl State {
         };
 
         let mut current_frame = [0u8; NUM_PIXELS * 4];
-
-        for i in 0..frame.len() {
-            let f = RGB_VALUE_TABLE[frame[i] as usize];
-            current_frame[i * 4] = f[0];
-            current_frame[i * 4 + 1] = f[1];
-            current_frame[i * 4 + 2] = f[2];
-
-            // Alpha is always 0xff because it's opaque
-            current_frame[i * 4 + 3] = 0xff;
-        }
+        nestadia::frame_to_rgba(&frame, &mut current_frame);
 
         // Update texture
         let texture_size = wgpu::Extent3d {

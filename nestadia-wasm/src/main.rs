@@ -10,10 +10,6 @@ use yew::{
 };
 use yew::{virtual_dom::VNode, ChangeData};
 
-mod rgb_value_table;
-
-use rgb_value_table::RGB_VALUE_TABLE;
-
 bitflags! {
     #[derive(Default)]
     struct ControllerState: u8 {
@@ -177,18 +173,9 @@ impl Component for EmulatorComponent {
                     .unwrap();
 
                 // Convert to RGBA
-                let mut rgba_frame = vec![0u8; 256 * 240 * 4];
+                let mut rgba_frame = [0u8; 256 * 240 * 4];
 
-                for i in 0..256 * 240 {
-                    let rgb = RGB_VALUE_TABLE
-                        .get(frame[i] as usize)
-                        .unwrap_or(&[0x00, 0x00, 0x00]);
-
-                    rgba_frame[i * 4] = rgb[0];
-                    rgba_frame[i * 4 + 1] = rgb[1];
-                    rgba_frame[i * 4 + 2] = rgb[2];
-                    rgba_frame[i * 4 + 3] = 0xFF;
-                }
+                nestadia::frame_to_rgba(&frame, &mut rgba_frame);
 
                 // Draw image data to the canvas
                 let image_data =
