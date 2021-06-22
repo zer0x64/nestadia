@@ -118,11 +118,14 @@ impl Mapper for Mapper004 {
             0xA000..=0xBFFF => {
                 if (addr & 0x01) == 0 {
                     // Mirroring
-                    if let Mirroring::FourScreen = self.mirroring {
-                        self.mirroring = match data & 0x01 {
-                            0 => Mirroring::Vertical,
-                            1 => Mirroring::Horizontal,
-                            _ => unreachable!(),
+                    match self.mirroring {
+                        Mirroring::FourScreen => {}
+                        _ => {
+                            self.mirroring = match data & 0x01 {
+                                0 => Mirroring::Vertical,
+                                1 => Mirroring::Horizontal,
+                                _ => unreachable!(),
+                            }
                         }
                     }
                 } else {
