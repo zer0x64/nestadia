@@ -24,15 +24,15 @@ impl Mapper for Mapper003 {
     }
 
     fn cpu_map_write(&mut self, _addr: u16, data: u8) {
-        self.chr_bank_selector = data;
+        self.chr_bank_selector = data & 0x03;
     }
 
     fn ppu_map_read(&self, addr: u16) -> usize {
-        (self.chr_bank_selector as usize) * 0x2000 + addr as usize
+        (self.chr_bank_selector as usize) * 0x2000 + (addr & 0x1fff) as usize
     }
 
     fn ppu_map_write(&self, addr: u16) -> Option<usize> {
-        Some((self.chr_bank_selector as usize) * 0x2000 + addr as usize)
+        Some((self.chr_bank_selector as usize) * 0x2000 + (addr & 0x1fff) as usize)
     }
 
     fn mirroring(&self) -> Mirroring {

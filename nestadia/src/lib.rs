@@ -8,6 +8,9 @@ mod bus;
 mod cartridge;
 mod cpu;
 mod ppu;
+mod rgb_palette;
+
+pub use rgb_palette::RGB_PALETTE;
 
 pub use cartridge::RomParserError;
 pub use cpu::Cpu;
@@ -128,5 +131,26 @@ impl Emulator {
     #[cfg(feature = "debugger")]
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
+    }
+}
+
+pub fn frame_to_rgb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
+    for i in 0..frame.len() {
+        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
+        output[i * 3] = f[0];
+        output[i * 3 + 1] = f[1];
+        output[i * 3 + 2] = f[2];
+    }
+}
+
+pub fn frame_to_rgba(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+    for i in 0..frame.len() {
+        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
+        output[i * 4] = f[0];
+        output[i * 4 + 1] = f[1];
+        output[i * 4 + 2] = f[2];
+
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff;
     }
 }
