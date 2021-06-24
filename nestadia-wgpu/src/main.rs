@@ -100,6 +100,9 @@ struct State {
     controller1: ControllerState,
     last_frame_time: Instant,
 
+    paused: bool,
+    breakpoints: Vec<u16>,
+
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -333,6 +336,9 @@ impl State {
             controller1: Default::default(),
             last_frame_time: Instant::now(),
 
+            paused: false,
+            breakpoints: Vec::new(),
+
             surface,
             device,
             queue,
@@ -398,37 +404,75 @@ impl State {
 
     /// Update the game state
     fn update(&mut self) {
-        // Clock until a frame is ready
-        let frame = loop {
-            if let Some(frame) = self.emulator.clock() {
-                break frame;
+        if self.paused {
+            let frame = self.debugger_prompt();
+
+            if let Some(frame) = frame {
+                let mut current_frame = [0u8; NUM_PIXELS * 4];
+                nestadia::frame_to_rgba(&frame, &mut current_frame);
+    
+                // Update texture
+                let texture_size = wgpu::Extent3d {
+                    width: 256,
+                    height: 240,
+                    depth_or_array_layers: 1,
+                };
+    
+                self.queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &self.screen_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                    },
+                    &current_frame,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * 256),
+                        rows_per_image: std::num::NonZeroU32::new(240),
+                    },
+                    texture_size,
+                );
             }
-        };
+        } else {
+            // Clock until a frame is ready
+            let frame = loop {
+                if self.breakpoints.contains(&self.emulator.cpu().pc) {
+                    println!("Reached breakpoint at {:#06x}", self.emulator.cpu().pc);
+                    self.paused = true;
+                    break None;
+                }
+                if let Some(frame) = self.emulator.clock() {
+                    break Some(frame);
+                }
+            };
 
-        let mut current_frame = [0u8; NUM_PIXELS * 4];
-        nestadia::frame_to_rgba(&frame, &mut current_frame);
-
-        // Update texture
-        let texture_size = wgpu::Extent3d {
-            width: 256,
-            height: 240,
-            depth_or_array_layers: 1,
-        };
-
-        self.queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &self.screen_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &current_frame,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * 256),
-                rows_per_image: std::num::NonZeroU32::new(240),
-            },
-            texture_size,
-        );
+            if let Some(frame) = frame {
+                let mut current_frame = [0u8; NUM_PIXELS * 4];
+                nestadia::frame_to_rgba(&frame, &mut current_frame);
+    
+                // Update texture
+                let texture_size = wgpu::Extent3d {
+                    width: 256,
+                    height: 240,
+                    depth_or_array_layers: 1,
+                };
+    
+                self.queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &self.screen_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                    },
+                    &current_frame,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * 256),
+                        rows_per_image: std::num::NonZeroU32::new(240),
+                    },
+                    texture_size,
+                );
+            }
+        }
     }
 
     /// Render the screen
@@ -483,6 +527,91 @@ impl State {
                 let _ = f.write_all(save_data);
             }
         }
+    }
+
+    fn debugger_prompt(&mut self) -> Option<[u8; 256 * 240]> {
+        let mut frame = None;
+        
+        print!("debugger> ");
+        std::io::stdout().flush().unwrap();
+    
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+
+        let mut tokens = input.split_ascii_whitespace();
+        match tokens.next() {
+            Some("c") | Some("continue") => self.paused = false,
+            Some("b") | Some("break") => {
+                if let Some(addr) = tokens.next() {
+                    self.breakpoints.push(u16::from_str_radix(addr.trim_start_matches("0x"), 16).unwrap());
+                } else {
+                    println!("Missing address");
+                }
+            },
+            Some("delete") => {
+                if let Some(bp) = tokens.next() {
+                    self.breakpoints.remove(bp.parse::<usize>().unwrap());
+                } else {
+                    self.breakpoints.clear();
+                }
+            },
+            Some("s") | Some("step") => {
+                while {
+                    if let Some(step_frame) = self.emulator.clock() {
+                        frame = Some(*step_frame);
+                    }
+                    self.emulator.cpu().cycles > 0
+                } {}
+            },
+            Some("i") | Some("info") => {
+                match tokens.next() {
+                    Some("b") | Some("break") => {
+                        for (index, addr) in self.breakpoints.iter().enumerate() {
+                            println!("Breakpoint {}: {:#x}", index, addr);
+                        }
+                    },
+                    Some("reg") | Some("register") => {
+                        let cpu = self.emulator.cpu();
+                        match tokens.next() {
+                            Some("a") => println!("a: {:#06x}", cpu.a),
+                            Some("x") => println!("x: {:#06x}", cpu.x),
+                            Some("y") => println!("y: {:#06x}", cpu.y),
+                            Some("st") => println!("st: {:#06x}", cpu.st),
+                            Some("pc") => println!("pc: {:#06x}", cpu.pc),
+                            Some("status") => println!("status: {:#06x}", cpu.status_register),
+                            Some(reg) => println!("Unknown register: {}", reg),
+                            None => {
+                                println!(" a: {:#06x}      x: {:#06x}      y: {:#06x}", cpu.a, cpu.x, cpu.y);
+                                println!("st: {:#06x}     pc: {:#06x} status: {:#06x}", cpu.st, cpu.pc, cpu.status_register);
+                            }
+                        }
+                    },
+                    Some(info) => println!("Unknown info: {}", info),
+                    None => println!("Missing which info")
+                }
+            },
+            Some("disas") | Some("disassemble") => {
+                let cpu = self.emulator.cpu();
+                let disassembly = self.emulator.disassemble(0, 0);
+                for (addr, disas) in &disassembly {
+                    if (*addr as usize) == (cpu.pc as usize) {
+                        println!("> {:#x}: {} <", addr, disas);
+                    } else if (*addr as usize) > (cpu.pc as usize) - 20 && (*addr as usize) < (cpu.pc as usize) + 20 {
+                        println!("{:#x}: {}", addr, disas);
+                    }
+                }
+            }
+            Some(cmd) => {
+                println!("Unknown command: {}", cmd);
+            },
+            None => {}
+        }
+
+        frame
+    }
+
+    fn pause(&mut self) {
+        self.paused = true;
     }
 }
 
@@ -584,6 +713,19 @@ fn main() {
                         state.save_data(&save_path);
 
                         *control_flow = ControlFlow::Exit
+                    }
+
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::P),
+                                ..
+                            },
+                        ..
+                    } => {
+                        state.pause();
+                        println!("Emulator is paused");
                     }
                     _ => {}
                 }
