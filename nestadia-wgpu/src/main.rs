@@ -410,14 +410,14 @@ impl State {
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
                 nestadia::frame_to_rgba(&frame, &mut current_frame);
-    
+
                 // Update texture
                 let texture_size = wgpu::Extent3d {
                     width: 256,
                     height: 240,
                     depth_or_array_layers: 1,
                 };
-    
+
                 self.queue.write_texture(
                     wgpu::ImageCopyTexture {
                         texture: &self.screen_texture,
@@ -449,14 +449,14 @@ impl State {
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
                 nestadia::frame_to_rgba(&frame, &mut current_frame);
-    
+
                 // Update texture
                 let texture_size = wgpu::Extent3d {
                     width: 256,
                     height: 240,
                     depth_or_array_layers: 1,
                 };
-    
+
                 self.queue.write_texture(
                     wgpu::ImageCopyTexture {
                         texture: &self.screen_texture,
@@ -531,10 +531,10 @@ impl State {
 
     fn debugger_prompt(&mut self) -> Option<[u8; 256 * 240]> {
         let mut frame = None;
-        
+
         print!("debugger> ");
         std::io::stdout().flush().unwrap();
-    
+
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
 
@@ -543,18 +543,19 @@ impl State {
             Some("c") | Some("continue") => self.paused = false,
             Some("b") | Some("break") => {
                 if let Some(addr) = tokens.next() {
-                    self.breakpoints.push(u16::from_str_radix(addr.trim_start_matches("0x"), 16).unwrap());
+                    self.breakpoints
+                        .push(u16::from_str_radix(addr.trim_start_matches("0x"), 16).unwrap());
                 } else {
                     println!("Missing address");
                 }
-            },
+            }
             Some("delete") => {
                 if let Some(bp) = tokens.next() {
                     self.breakpoints.remove(bp.parse::<usize>().unwrap());
                 } else {
                     self.breakpoints.clear();
                 }
-            },
+            }
             Some("s") | Some("step") => {
                 while {
                     if let Some(step_frame) = self.emulator.clock() {
@@ -562,33 +563,37 @@ impl State {
                     }
                     self.emulator.cpu().cycles > 0
                 } {}
-            },
-            Some("i") | Some("info") => {
-                match tokens.next() {
-                    Some("b") | Some("break") => {
-                        for (index, addr) in self.breakpoints.iter().enumerate() {
-                            println!("Breakpoint {}: {:#x}", index, addr);
-                        }
-                    },
-                    Some("reg") | Some("register") => {
-                        let cpu = self.emulator.cpu();
-                        match tokens.next() {
-                            Some("a") => println!("a: {:#06x}", cpu.a),
-                            Some("x") => println!("x: {:#06x}", cpu.x),
-                            Some("y") => println!("y: {:#06x}", cpu.y),
-                            Some("st") => println!("st: {:#06x}", cpu.st),
-                            Some("pc") => println!("pc: {:#06x}", cpu.pc),
-                            Some("status") => println!("status: {:#06x}", cpu.status_register),
-                            Some(reg) => println!("Unknown register: {}", reg),
-                            None => {
-                                println!(" a: {:#06x}      x: {:#06x}      y: {:#06x}", cpu.a, cpu.x, cpu.y);
-                                println!("st: {:#06x}     pc: {:#06x} status: {:#06x}", cpu.st, cpu.pc, cpu.status_register);
-                            }
-                        }
-                    },
-                    Some(info) => println!("Unknown info: {}", info),
-                    None => println!("Missing which info")
+            }
+            Some("i") | Some("info") => match tokens.next() {
+                Some("b") | Some("break") => {
+                    for (index, addr) in self.breakpoints.iter().enumerate() {
+                        println!("Breakpoint {}: {:#x}", index, addr);
+                    }
                 }
+                Some("reg") | Some("register") => {
+                    let cpu = self.emulator.cpu();
+                    match tokens.next() {
+                        Some("a") => println!("a: {:#06x}", cpu.a),
+                        Some("x") => println!("x: {:#06x}", cpu.x),
+                        Some("y") => println!("y: {:#06x}", cpu.y),
+                        Some("st") => println!("st: {:#06x}", cpu.st),
+                        Some("pc") => println!("pc: {:#06x}", cpu.pc),
+                        Some("status") => println!("status: {:#06x}", cpu.status_register),
+                        Some(reg) => println!("Unknown register: {}", reg),
+                        None => {
+                            println!(
+                                " a: {:#06x}      x: {:#06x}      y: {:#06x}",
+                                cpu.a, cpu.x, cpu.y
+                            );
+                            println!(
+                                "st: {:#06x}     pc: {:#06x} status: {:#06x}",
+                                cpu.st, cpu.pc, cpu.status_register
+                            );
+                        }
+                    }
+                }
+                Some(info) => println!("Unknown info: {}", info),
+                None => println!("Missing which info"),
             },
             Some("disas") | Some("disassemble") => {
                 let cpu = self.emulator.cpu();
@@ -596,14 +601,16 @@ impl State {
                 for (addr, disas) in &disassembly {
                     if (*addr as usize) == (cpu.pc as usize) {
                         println!("> {:#x}: {} <", addr, disas);
-                    } else if (*addr as usize) > (cpu.pc as usize) - 20 && (*addr as usize) < (cpu.pc as usize) + 20 {
+                    } else if (*addr as usize) > (cpu.pc as usize) - 20
+                        && (*addr as usize) < (cpu.pc as usize) + 20
+                    {
                         println!("{:#x}: {}", addr, disas);
                     }
                 }
             }
             Some(cmd) => {
                 println!("Unknown command: {}", cmd);
-            },
+            }
             None => {}
         }
 
