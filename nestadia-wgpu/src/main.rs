@@ -27,6 +27,46 @@ struct Opt {
     rom: Option<PathBuf>,
 }
 
+fn parse_hex_addr(src: &str) -> Result<u16, std::num::ParseIntError> {
+    let src = src.trim_start_matches("0x");
+    u16::from_str_radix(src, 16)
+}
+
+#[derive(Debug, StructOpt)]
+enum DebuggerOpt {
+    #[structopt(alias = "c")]
+    Continue,
+
+    #[structopt(alias = "b")]
+    Break {
+        #[structopt(parse(try_from_str = parse_hex_addr))]
+        addr: u16
+    },
+
+    #[structopt()]
+    Delete {
+        index: Option<usize>
+    },
+
+    #[structopt(alias = "s")]
+    Step,
+
+    #[structopt(alias = "i")]
+    Info(DebuggerInfoOpt),
+
+    #[structopt(alias = "disas")]
+    Disassemble
+}
+
+#[derive(Debug, StructOpt)]
+enum DebuggerInfoOpt {
+    #[structopt(alias = "b")]
+    Break,
+    Reg {
+        register: Option<String>
+    }
+}
+
 bitflags! {
     #[derive(Default)]
     struct ControllerState: u8 {
@@ -538,80 +578,78 @@ impl State {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
 
-        let mut tokens = input.split_ascii_whitespace();
-        match tokens.next() {
-            Some("c") | Some("continue") => self.paused = false,
-            Some("b") | Some("break") => {
-                if let Some(addr) = tokens.next() {
-                    self.breakpoints
-                        .push(u16::from_str_radix(addr.trim_start_matches("0x"), 16).unwrap());
-                } else {
-                    println!("Missing address");
-                }
-            }
-            Some("delete") => {
-                if let Some(bp) = tokens.next() {
-                    self.breakpoints.remove(bp.parse::<usize>().unwrap());
-                } else {
-                    self.breakpoints.clear();
-                }
-            }
-            Some("s") | Some("step") => {
-                while {
-                    if let Some(step_frame) = self.emulator.clock() {
-                        frame = Some(*step_frame);
+        let tokens = input.split_ascii_whitespace();
+        let clap = DebuggerOpt::clap()
+            .setting(structopt::clap::AppSettings::NoBinaryName)
+            .get_matches_from_safe(tokens);
+
+        match clap {
+            Ok(clap) => {
+                let opt = DebuggerOpt::from_clap(&clap);
+                match opt {
+                    DebuggerOpt::Continue => self.paused = false,
+                    DebuggerOpt::Break { addr } => self.breakpoints.push(addr),
+                    DebuggerOpt::Delete { index } => {
+                        if let Some(index) = index {
+                            self.breakpoints.remove(index);
+                        } else {
+                            self.breakpoints.clear();
+                        }
                     }
-                    self.emulator.cpu().cycles > 0
-                } {}
-            }
-            Some("i") | Some("info") => match tokens.next() {
-                Some("b") | Some("break") => {
-                    for (index, addr) in self.breakpoints.iter().enumerate() {
-                        println!("Breakpoint {}: {:#x}", index, addr);
+                    DebuggerOpt::Step => {
+                        while {
+                            if let Some(step_frame) = self.emulator.clock() {
+                                frame = Some(*step_frame);
+                            }
+                            self.emulator.cpu().cycles > 0
+                        } {}
                     }
-                }
-                Some("reg") | Some("register") => {
-                    let cpu = self.emulator.cpu();
-                    match tokens.next() {
-                        Some("a") => println!("a: {:#06x}", cpu.a),
-                        Some("x") => println!("x: {:#06x}", cpu.x),
-                        Some("y") => println!("y: {:#06x}", cpu.y),
-                        Some("st") => println!("st: {:#06x}", cpu.st),
-                        Some("pc") => println!("pc: {:#06x}", cpu.pc),
-                        Some("status") => println!("status: {:#06x}", cpu.status_register),
-                        Some(reg) => println!("Unknown register: {}", reg),
-                        None => {
-                            println!(
-                                " a: {:#06x}      x: {:#06x}      y: {:#06x}",
-                                cpu.a, cpu.x, cpu.y
-                            );
-                            println!(
-                                "st: {:#06x}     pc: {:#06x} status: {:#06x}",
-                                cpu.st, cpu.pc, cpu.status_register
-                            );
+                    DebuggerOpt::Info(info) => match info {
+                        DebuggerInfoOpt::Break => {
+                            for (index, addr) in self.breakpoints.iter().enumerate() {
+                                println!("Breakpoint {}: {:#x}", index, addr);
+                            }
+                        }
+                        DebuggerInfoOpt::Reg { register } => {
+                            let cpu = self.emulator.cpu();
+                            if let Some(register) = register {
+                                match register.as_str() {
+                                    "a" => println!("a: {:#06x}", cpu.a),
+                                    "x" => println!("x: {:#06x}", cpu.x),
+                                    "y" => println!("y: {:#06x}", cpu.y),
+                                    "st" => println!("st: {:#06x}", cpu.st),
+                                    "pc" => println!("pc: {:#06x}", cpu.pc),
+                                    "status" => println!("status: {:#06x}", cpu.status_register),
+                                    reg => println!("Unknown register: {}", reg),
+                                }
+                            } else {
+                                println!(
+                                    " a: {:#06x}      x: {:#06x}      y: {:#06x}",
+                                    cpu.a, cpu.x, cpu.y
+                                );
+                                println!(
+                                    "st: {:#06x}     pc: {:#06x} status: {:#06x}",
+                                    cpu.st, cpu.pc, cpu.status_register
+                                );
+                            }
+                        }
+                    }
+                    DebuggerOpt::Disassemble => {
+                        let cpu = self.emulator.cpu();
+                        let disassembly = self.emulator.disassemble(0, 0);
+                        for (addr, disas) in &disassembly {
+                            if (*addr as usize) == (cpu.pc as usize) {
+                                println!("> {:#x}: {} <", addr, disas);
+                            } else if (*addr as usize) > (cpu.pc as usize) - 20
+                                && (*addr as usize) < (cpu.pc as usize) + 20
+                            {
+                                println!("{:#x}: {}", addr, disas);
+                            }
                         }
                     }
                 }
-                Some(info) => println!("Unknown info: {}", info),
-                None => println!("Missing which info"),
-            },
-            Some("disas") | Some("disassemble") => {
-                let cpu = self.emulator.cpu();
-                let disassembly = self.emulator.disassemble(0, 0);
-                for (addr, disas) in &disassembly {
-                    if (*addr as usize) == (cpu.pc as usize) {
-                        println!("> {:#x}: {} <", addr, disas);
-                    } else if (*addr as usize) > (cpu.pc as usize) - 20
-                        && (*addr as usize) < (cpu.pc as usize) + 20
-                    {
-                        println!("{:#x}: {}", addr, disas);
-                    }
-                }
             }
-            Some(cmd) => {
-                println!("Unknown command: {}", cmd);
-            }
-            None => {}
+            Err(e) => println!("{}", e.message)
         }
 
         frame
