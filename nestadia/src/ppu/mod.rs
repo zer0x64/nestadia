@@ -13,8 +13,9 @@ pub type PpuFrame = [u8; FRAME_WIDTH * FRAME_HEIGHT];
 
 pub struct Ppu {
     // Internal memory
-    palette_table: [u8; 32], // For color stuff
-    oam_data: [u8; 64 * 4],  // Object Attribute Memory, internal to PPU
+    palette_table: [u8; 32],    // For color stuff
+    oam_data: [u8; 64 * 4],     // Object Attribute Memory, internal to PPU
+    secondary_oam: [u8; 8 * 4], // Object Attribute Memory of sprites to render on the scanline.
 
     // Registers
     ctrl_reg: registers::ControlReg,
@@ -30,6 +31,7 @@ pub struct Ppu {
     frame: PpuFrame,
     vblank_nmi_set: bool,
     last_data_on_bus: u8,
+    sprite_zero_in_secondary_oam: bool,
 }
 
 impl Default for Ppu {
@@ -43,6 +45,7 @@ impl Ppu {
         Ppu {
             palette_table: [0u8; 32],
             oam_data: [0u8; 64 * 4],
+            secondary_oam: [0xffu8; 8 * 4],
 
             ctrl_reg: registers::ControlReg::default(),
             mask_reg: registers::MaskReg::default(),
@@ -56,12 +59,14 @@ impl Ppu {
             frame: [0u8; 256 * 240],
             vblank_nmi_set: false,
             last_data_on_bus: 0,
+            sprite_zero_in_secondary_oam: false,
         }
     }
 
     pub fn reset(&mut self) {
         self.palette_table = [0u8; 32];
         self.oam_data = [0u8; 64 * 4];
+        self.secondary_oam = [0xffu8; 8 * 4];
         self.ctrl_reg = registers::ControlReg::default();
         self.mask_reg = registers::MaskReg::default();
         self.status_reg = registers::StatusReg::default();
@@ -72,6 +77,7 @@ impl Ppu {
         self.scanline = 0;
         self.frame = [0u8; FRAME_WIDTH * FRAME_HEIGHT];
         self.vblank_nmi_set = false;
+        self.sprite_zero_in_secondary_oam = false;
     }
 
     pub fn take_vblank_nmi_set_state(&mut self) -> bool {
@@ -173,7 +179,6 @@ impl Ppu {
         }
     }
 
-    #[track_caller]
     pub fn read(&mut self, bus: &mut PpuBus<'_>, addr: u16) -> u8 {
         let addr = addr & 0x07; // mirror
 
@@ -268,20 +273,24 @@ impl Ppu {
     pub fn clock(&mut self, bus: &mut PpuBus) {
         self.cycle_count += 1;
 
-        if self.cycle_count >= 341 {
-            if self.is_sprite_0_hit() {
-                self.status_reg
-                    .insert(registers::StatusReg::SPRITE_ZERO_HIT);
-            }
+        if self.scanline == -1 && self.cycle_count == 1 {
+            // Reset sprite 0 hit
+            self.status_reg
+                .remove(registers::StatusReg::SPRITE_ZERO_HIT);
 
+            // Reset sprite overflow flag
+            self.status_reg
+                .remove(registers::StatusReg::SPRITE_OVERFLOW);
+        } else if self.cycle_count >= 341 {
             self.cycle_count = 0;
             self.scanline += 1;
             bus.irq_scanline();
 
-            if self.scanline == 241 {
+            if self.scanline >= 0 && self.scanline < 240 {
+                // Load the secondary OAM on the first cycle of the scanline
+                self.load_secondary_oam();
+            } else if self.scanline == 241 {
                 self.status_reg.insert(registers::StatusReg::VBLANK_STARTED);
-                self.status_reg
-                    .remove(registers::StatusReg::SPRITE_ZERO_HIT);
                 if self.ctrl_reg.contains(registers::ControlReg::GENERATE_NMI) {
                     self.vblank_nmi_set = true;
                 }
@@ -292,11 +301,8 @@ impl Ppu {
 
                 // VBLANK is done
                 self.status_reg.remove(registers::StatusReg::VBLANK_STARTED);
-
-                // FIXME: temporary workaround for quick and dirty, but somewhat working, rendering
-                self.dump_sprites(bus);
             }
-        }
+        };
 
         self.render_pixel(bus);
     }
@@ -304,58 +310,72 @@ impl Ppu {
     fn render_pixel(&mut self, bus: &mut PpuBus) {
         use core::convert::TryFrom;
 
-        if self.scanline < 0 || self.scanline > 239 || self.cycle_count > 255 {
+        if self.scanline < 0 || self.scanline > 239 {
+            return;
+        } else if self.cycle_count > 255 {
+            if self.cycle_count >= 340 && self.sprite_zero_in_secondary_oam {
+                // Test sprite 0 hit anyway to fix a hang on mario.
+                // FIXME: This uses the approximation and is incorrect.
+                // We should extract the minimum code to verify this and do it the correct way
+                if self.is_sprite_0_hit() {
+                    self.status_reg
+                        .insert(registers::StatusReg::SPRITE_ZERO_HIT);
+                };
+            }
             return;
         }
-
-        let scroll_x = self.scroll_reg.scroll_x();
-        let scroll_y = self.scroll_reg.scroll_y();
-
-        let bank = self.ctrl_reg.background_pattern_base_addr();
-        let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
 
         let x = self.cycle_count;
         let y = u16::try_from(self.scanline).unwrap();
 
-        let x_scrolled = x.wrapping_add(scroll_x as u16);
-        let y_scrolled = y.wrapping_add(scroll_y as u16);
+        let (background_transparent, background_color) =
+            if self.mask_reg.contains(registers::MaskReg::SHOW_BACKGROUND)
+                && (x >= 8
+                    || self
+                        .mask_reg
+                        .contains(registers::MaskReg::LEFTMOST_8PXL_BACKGROUND))
+            {
+                self.get_background_pixel(bus, x, y)
+            } else {
+                // Transparent with default background color
+                (true, self.palette_table[0])
+            };
 
-        let mut quadrant: u8 = 0;
-        let mut offset = 0;
-
-        let tile_x = if x_scrolled < (32 * 8) {
-            x_scrolled / 8
+        let sprite_pixel = if self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES)
+            && (x >= 8
+                || self
+                    .mask_reg
+                    .contains(registers::MaskReg::LEFTMOST_8PXL_SPRITE))
+        {
+            self.get_sprite_pixel(bus, x, y)
         } else {
-            quadrant |= 1;
-            offset |= 0x400;
-            (x_scrolled - 32 * 8) / 8
+            None
         };
-        let tile_y = if y_scrolled < (30 * 8) {
-            y_scrolled / 8
+
+        if let Some((sprite_color, behind_background, is_sprite_zero)) = sprite_pixel {
+            if background_transparent {
+                // If background is transparent, render sprite
+                self.set_pixel(x, y, sprite_color);
+            } else {
+                // Since both pixels are opaque, trigger sprite 0 hit if all other conditions are met
+                if self.sprite_zero_in_secondary_oam && is_sprite_zero && x != 255 {
+                    self.status_reg
+                        .insert(registers::StatusReg::SPRITE_ZERO_HIT)
+                }
+
+                if behind_background {
+                    self.set_pixel(x, y, background_color);
+                } else {
+                    self.set_pixel(x, y, sprite_color);
+                }
+            }
         } else {
-            quadrant |= 2;
-            offset |= 0x800;
-            (y_scrolled - 30 * 8) / 8
-        };
-
-        let tile_idx = tile_y * 32 + tile_x + offset;
-
-        let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
-
-        let pat_x = 7 - x_scrolled % 8;
-        let pat_y = y_scrolled % 8;
-        let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
-        let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
-
-        let pat = hi << 1 | lo;
-
-        let palette = self.bg_palette(bus, tile_x, tile_y, quadrant);
-        let color = palette[pat as usize];
-
-        self.set_pixel(x, y, color);
+            // If there's not opaque sprite pixel, render background
+            self.set_pixel(x, y, background_color);
+        }
     }
 
-    fn bg_palette(&mut self, bus: &mut PpuBus, tile_x: u16, tile_y: u16, quadrant: u8) -> [u8; 4] {
+    fn bg_palette(&self, bus: &mut PpuBus, tile_x: u16, tile_y: u16, quadrant: u8) -> [u8; 4] {
         let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
         let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
 
@@ -389,135 +409,7 @@ impl Ppu {
         ]
     }
 
-    // this is mostly for quick debugging
-    fn dump_sprites(&mut self, bus: &mut PpuBus) {
-        for i in (0..self.oam_data.len()).step_by(4) {
-            let behind_background = self.oam_data[i + 2] >> 5 & 1 == 1;
-            if behind_background {
-                continue;
-            }
-
-            let tile_idx = u16::from(self.oam_data[i + 1]);
-            let tile_x = u16::from(self.oam_data[i + 3]);
-            let tile_y = u16::from(self.oam_data[i]);
-
-            let flip_vertical = self.oam_data[i + 2] >> 7 & 1 == 1;
-
-            let flip_horizontal = self.oam_data[i + 2] >> 6 & 1 == 1;
-
-            // find sprite palette
-            let palette_idx = self.oam_data[i + 2] & 0b11;
-            let sprite_palette = self.sprite_palette(palette_idx);
-
-            // load tile pattern
-            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
-            let mut tile = [0u8; 16];
-
-            if self.ctrl_reg.sprite_size() == 8 {
-                // 8x8 sprites
-                for i in 0..16 {
-                    tile[i as usize] = bus.read_chr_mem(bank + tile_idx * 16 + i);
-                }
-                self.dump_tile(
-                    sprite_palette,
-                    flip_horizontal,
-                    flip_vertical,
-                    tile,
-                    tile_x,
-                    tile_y,
-                );
-            } else {
-                // 8x16 sprites
-                if !flip_vertical {
-                    for i in 0..16 {
-                        tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
-                    }
-                    self.dump_tile(
-                        sprite_palette,
-                        flip_horizontal,
-                        flip_vertical,
-                        tile,
-                        tile_x,
-                        tile_y,
-                    );
-
-                    for i in 0..16 {
-                        tile[i as usize] =
-                            bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
-                    }
-                    self.dump_tile(
-                        sprite_palette,
-                        flip_horizontal,
-                        flip_vertical,
-                        tile,
-                        tile_x,
-                        tile_y + 8,
-                    );
-                } else {
-                    for i in 0..16 {
-                        tile[i as usize] =
-                            bus.read_chr_mem(bank + ((tile_idx & 0xFE) + 1) * 16 + i);
-                    }
-                    self.dump_tile(
-                        sprite_palette,
-                        flip_horizontal,
-                        flip_vertical,
-                        tile,
-                        tile_x,
-                        tile_y,
-                    );
-
-                    for i in 0..16 {
-                        tile[i as usize] = bus.read_chr_mem(bank + (tile_idx & 0xFE) * 16 + i);
-                    }
-                    self.dump_tile(
-                        sprite_palette,
-                        flip_horizontal,
-                        flip_vertical,
-                        tile,
-                        tile_x,
-                        tile_y + 8,
-                    );
-                }
-            }
-        }
-    }
-
-    fn dump_tile(
-        &mut self,
-        sprite_palette: [u8; 4],
-        x_flip: bool,
-        y_flip: bool,
-        tile: [u8; 16],
-        tile_x: u16,
-        tile_y: u16,
-    ) {
-        let flip_vertical = if y_flip { |x| 7 - x } else { |x| x };
-
-        let flip_horizontal = if x_flip { |y| 7 - y } else { |y| y };
-
-        for y in 0..8 {
-            let byte_lo = tile[y as usize];
-            let byte_hi = tile[y as usize + 8];
-            for x in 0..8 {
-                let shift = 7 - x;
-                let pat_lo = (byte_lo >> shift) & 0b1;
-                let pat_hi = (byte_hi >> shift) & 0b1;
-                let pat = pat_hi << 1 | pat_lo;
-                if pat != 0 {
-                    // non-transparant
-                    let color = sprite_palette[pat as usize];
-                    self.set_pixel(
-                        tile_x + flip_horizontal(x),
-                        tile_y + flip_vertical(y),
-                        color,
-                    );
-                }
-            }
-        }
-    }
-
-    fn sprite_palette(&mut self, palette_idx: u8) -> [u8; 4] {
+    fn sprite_palette(&self, palette_idx: u8) -> [u8; 4] {
         let pallete_start = usize::from(palette_idx + 4) * 4 + 1;
         [
             self.palette_table[0],
@@ -544,12 +436,189 @@ impl Ppu {
         let x = u16::from(self.oam_data[3]);
         (y == self.scanline)
             && x <= self.cycle_count
+            && x != 255
             && self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES)
+            && self.mask_reg.contains(registers::MaskReg::SHOW_BACKGROUND)
+            && !(x < 8
+                && (self
+                    .mask_reg
+                    .contains(registers::MaskReg::LEFTMOST_8PXL_BACKGROUND)
+                    || self
+                        .mask_reg
+                        .contains(registers::MaskReg::LEFTMOST_8PXL_SPRITE)))
+    }
+
+    fn load_secondary_oam(&mut self) {
+        // Clears it first
+        self.sprite_zero_in_secondary_oam = false;
+        self.secondary_oam.fill(0xff);
+
+        let mut counter = 0;
+
+        for sprite_idx in (0..self.oam_data.len()).step_by(4) {
+            let sprite_y =
+                (self.scanline as u16).wrapping_sub(u16::from(self.oam_data[sprite_idx]));
+
+            // There is a sprite on that pixel
+            if sprite_y < self.ctrl_reg.sprite_size() as u16 {
+                if counter >= 8 {
+                    // 9th sprite, sets overflow flag and return.
+                    // TODO: The real implementation of this is broken and more complicated, but almost never used.
+                    self.status_reg
+                        .insert(registers::StatusReg::SPRITE_OVERFLOW);
+                    break;
+                };
+                if sprite_idx == 0 {
+                    self.sprite_zero_in_secondary_oam = true;
+                };
+
+                self.secondary_oam[counter * 4..counter * 4 + 4]
+                    .copy_from_slice(&self.oam_data[sprite_idx..sprite_idx + 4]);
+                counter += 1;
+            }
+        }
     }
 
     fn increment_vram_addr(&mut self) {
         let inc_step = self.ctrl_reg.vram_addr_increment();
         self.addr_reg.inc(inc_step);
+    }
+
+    fn get_background_pixel(&self, bus: &mut PpuBus, x: u16, y: u16) -> (bool, u8) {
+        let scroll_x = self.scroll_reg.scroll_x();
+        let scroll_y = self.scroll_reg.scroll_y();
+
+        let bank = self.ctrl_reg.background_pattern_base_addr();
+        let nametable_base_addr = self.ctrl_reg.nametable_base_addr();
+
+        let x_scrolled = x.wrapping_add(scroll_x as u16);
+        let y_scrolled = y.wrapping_add(scroll_y as u16);
+
+        let mut quadrant: u8 = 0;
+        let mut offset = 0;
+
+        let tile_x = if x_scrolled < (32 * 8) {
+            x_scrolled / 8
+        } else {
+            quadrant |= 1;
+            offset |= 0x400;
+            (x_scrolled - 32 * 8) / 8
+        };
+        let tile_y = if y_scrolled < (30 * 8) {
+            y_scrolled / 8
+        } else {
+            quadrant |= 2;
+            offset |= 0x800;
+            (y_scrolled - 30 * 8) / 8
+        };
+
+        let tile_idx = tile_y * 32 + tile_x + offset;
+
+        let tile = bus.read_name_tables(nametable_base_addr + tile_idx);
+
+        let pat_x = 7 - x_scrolled % 8;
+        let pat_y = y_scrolled % 8;
+        let lo = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y) >> pat_x) & 0b1;
+        let hi = (bus.read_chr_mem(bank + u16::from(tile) * 16 + pat_y + 8) >> pat_x) & 0b1;
+
+        let background_pat = hi << 1 | lo;
+        let background_palette = self.bg_palette(bus, tile_x, tile_y, quadrant);
+
+        (
+            background_pat == 0,
+            background_palette[background_pat as usize],
+        )
+    }
+
+    fn get_sprite_pixel(&self, bus: &mut PpuBus, x: u16, y: u16) -> Option<(u8, bool, bool)> {
+        // Check if there's a sprite to draw
+        for sprite_idx in (0..self.secondary_oam.len()).step_by(4) {
+            let sprite_x = x.wrapping_sub(u16::from(self.secondary_oam[sprite_idx + 3]));
+            let sprite_y = y.wrapping_sub(u16::from(self.secondary_oam[sprite_idx]));
+
+            // There is a sprite on that pixel
+            if (sprite_x < 8) && (sprite_y < self.ctrl_reg.sprite_size() as u16) {
+                let tile_idx = u16::from(self.secondary_oam[sprite_idx + 1]);
+                let flags = self.secondary_oam[sprite_idx + 2];
+
+                let behind_background = flags >> 5 & 1 == 1;
+
+                let flip_vertical = flags >> 7 & 1 == 1;
+
+                let flip_horizontal = flags >> 6 & 1 == 1;
+
+                // find sprite palette
+                let palette_idx = flags & 0b11;
+                let sprite_palette = self.sprite_palette(palette_idx);
+
+                // load tile pattern
+                let sprite_pat = if self.ctrl_reg.sprite_size() == 8 {
+                    // 8x8 sprites
+                    let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
+
+                    let flipped_x = if flip_horizontal {
+                        sprite_x
+                    } else {
+                        7 - sprite_x
+                    };
+                    let flipped_y = if flip_vertical {
+                        7 - sprite_y
+                    } else {
+                        sprite_y
+                    };
+
+                    let lo =
+                        (bus.read_chr_mem(bank + tile_idx * 16 + flipped_y) >> flipped_x) & 0b1;
+                    let hi =
+                        (bus.read_chr_mem(bank + tile_idx * 16 + flipped_y + 8) >> flipped_x) & 0b1;
+
+                    hi << 1 | lo
+                } else {
+                    // 8x16 sprites
+                    let flipped_x = if flip_horizontal {
+                        sprite_x
+                    } else {
+                        7 - sprite_x
+                    };
+                    let flipped_y = if flip_vertical {
+                        15 - sprite_y
+                    } else {
+                        sprite_y
+                    };
+
+                    // This is because of the hi/lo parts of the pattern memory
+                    let flipped_y = if flipped_y >= 8 {
+                        flipped_y + 8
+                    } else {
+                        flipped_y
+                    };
+
+                    // LSB is used to select the bank and the ctrl register is ignored
+                    let bank = if tile_idx & 0b1 == 1 { 0x1000 } else { 0x0000 };
+                    let tile_idx = tile_idx & 0xFFFE;
+
+                    let lo =
+                        (bus.read_chr_mem(bank + tile_idx * 16 + flipped_y) >> flipped_x) & 0b1;
+                    let hi =
+                        (bus.read_chr_mem(bank + tile_idx * 16 + flipped_y + 8) >> flipped_x) & 0b1;
+
+                    hi << 1 | lo
+                };
+
+                if sprite_pat == 0 {
+                    // Check for other sprites
+                    continue;
+                } else {
+                    return Some((
+                        sprite_palette[sprite_pat as usize],
+                        behind_background,
+                        sprite_idx == 0,
+                    ));
+                }
+            }
+        }
+
+        None
     }
 }
 
