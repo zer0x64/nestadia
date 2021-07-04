@@ -27,45 +27,7 @@ struct Opt {
     rom: Option<PathBuf>,
 }
 
-fn parse_hex_addr(src: &str) -> Result<u16, std::num::ParseIntError> {
-    let src = src.trim_start_matches("0x");
-    u16::from_str_radix(src, 16)
-}
-
-#[derive(Debug, StructOpt)]
-enum DebuggerOpt {
-    #[structopt(alias = "c")]
-    Continue,
-
-    #[structopt(alias = "b")]
-    Break {
-        #[structopt(parse(try_from_str = parse_hex_addr))]
-        addr: u16
-    },
-
-    #[structopt()]
-    Delete {
-        index: Option<usize>
-    },
-
-    #[structopt(alias = "s")]
-    Step,
-
-    #[structopt(alias = "i")]
-    Info(DebuggerInfoOpt),
-
-    #[structopt(alias = "disas")]
-    Disassemble
-}
-
-#[derive(Debug, StructOpt)]
-enum DebuggerInfoOpt {
-    #[structopt(alias = "b")]
-    Break,
-    Reg {
-        register: Option<String>
-    }
-}
+mod debugger;
 
 bitflags! {
     #[derive(Default)]
@@ -567,92 +529,6 @@ impl State {
                 let _ = f.write_all(save_data);
             }
         }
-    }
-
-    fn debugger_prompt(&mut self) -> Option<[u8; 256 * 240]> {
-        let mut frame = None;
-
-        print!("debugger> ");
-        std::io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
-
-        let tokens = input.split_ascii_whitespace();
-        let clap = DebuggerOpt::clap()
-            .setting(structopt::clap::AppSettings::NoBinaryName)
-            .get_matches_from_safe(tokens);
-
-        match clap {
-            Ok(clap) => {
-                let opt = DebuggerOpt::from_clap(&clap);
-                match opt {
-                    DebuggerOpt::Continue => self.paused = false,
-                    DebuggerOpt::Break { addr } => self.breakpoints.push(addr),
-                    DebuggerOpt::Delete { index } => {
-                        if let Some(index) = index {
-                            self.breakpoints.remove(index);
-                        } else {
-                            self.breakpoints.clear();
-                        }
-                    }
-                    DebuggerOpt::Step => {
-                        while {
-                            if let Some(step_frame) = self.emulator.clock() {
-                                frame = Some(*step_frame);
-                            }
-                            self.emulator.cpu().cycles > 0
-                        } {}
-                    }
-                    DebuggerOpt::Info(info) => match info {
-                        DebuggerInfoOpt::Break => {
-                            for (index, addr) in self.breakpoints.iter().enumerate() {
-                                println!("Breakpoint {}: {:#x}", index, addr);
-                            }
-                        }
-                        DebuggerInfoOpt::Reg { register } => {
-                            let cpu = self.emulator.cpu();
-                            if let Some(register) = register {
-                                match register.as_str() {
-                                    "a" => println!("a: {:#06x}", cpu.a),
-                                    "x" => println!("x: {:#06x}", cpu.x),
-                                    "y" => println!("y: {:#06x}", cpu.y),
-                                    "st" => println!("st: {:#06x}", cpu.st),
-                                    "pc" => println!("pc: {:#06x}", cpu.pc),
-                                    "status" => println!("status: {:#06x}", cpu.status_register),
-                                    reg => println!("Unknown register: {}", reg),
-                                }
-                            } else {
-                                println!(
-                                    " a: {:#06x}      x: {:#06x}      y: {:#06x}",
-                                    cpu.a, cpu.x, cpu.y
-                                );
-                                println!(
-                                    "st: {:#06x}     pc: {:#06x} status: {:#06x}",
-                                    cpu.st, cpu.pc, cpu.status_register
-                                );
-                            }
-                        }
-                    }
-                    DebuggerOpt::Disassemble => {
-                        let cpu = self.emulator.cpu();
-                        let disassembly = self.emulator.disassemble(0, 0);
-                        for (addr, disas) in &disassembly {
-                            if (*addr as usize) == (cpu.pc as usize) {
-                                println!("> {:#x}: {} <", addr, disas);
-                            } else if (*addr as usize) > (cpu.pc as usize) - 20
-                                && (*addr as usize) < (cpu.pc as usize) + 20
-                            {
-                                println!("{:#x}: {}", addr, disas);
-                            }
-                        }
-                    }
-                }
-            }
-            Err(e) => println!("{}", e.message)
-        }
-
-        frame
     }
 
     fn pause(&mut self) {
