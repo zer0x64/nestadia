@@ -1,54 +1,86 @@
+use bitfield::bitfield;
 use bitflags::bitflags;
 
-// == VRAM address register == //
+bitfield! {
+    /// A Vram address. Used to read and write on the PPU bus and during rendering
+    #[derive(Clone, Copy)]
+    pub struct VramAddr(u16);
 
-/// VRAM address (0x0000..0x3FFF)
-/// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUADDR
-pub struct VramAddr {
-    value: u16,
-    latch: bool,
+    /// The X coordinate of the tile index
+    pub coarse_x, set_coarse_x: 4, 0;
+
+    /// The Y coordinate of the tile index
+    pub coarse_y, set_coarse_y: 9, 5;
+
+    /// The current nametable
+    pub nametable, set_nametable: 11, 10;
+
+    /// The Y coordinate of the pixel inside the tile
+    pub fine_y, set_fine_y: 14, 12;
 }
 
 impl Default for VramAddr {
     fn default() -> Self {
-        Self {
-            value: 0,
-            latch: false,
-        }
+        Self(0)
     }
 }
 
 impl VramAddr {
-    pub fn load(&mut self, data: u8) {
-        if self.latch {
-            // reset and update lower
-            self.value &= 0xFF00;
-            self.value |= u16::from(data);
-        } else {
-            // reset and update higher
-            self.value &= 0x00FF;
-            self.value |= u16::from(data) << 8;
-        }
-        self.latch = !self.latch;
-        self.mirror();
-    }
-
     pub fn get(&self) -> u16 {
-        self.value
+        self.0
     }
 
-    pub fn inc(&mut self, step: u8) {
-        self.value = self.value.wrapping_add(u16::from(step));
-        self.mirror();
+    pub fn set(&mut self, val: u16) {
+        self.0 = val;
     }
 
-    pub fn reset_latch(&mut self) {
-        self.latch = false;
+    pub fn increment_coarse_x(&mut self) {
+        if self.coarse_x() == 31 {
+            self.set_coarse_x(0);
+
+            // Flip horizontal nametable
+            self.set_nametable(self.nametable() ^ 0b01);
+        } else {
+            self.set_coarse_x(self.coarse_x() + 1);
+        }
     }
 
-    fn mirror(&mut self) {
-        const MIRRORING_HIGHER_BOUND: u16 = 0x3FFF;
-        self.value &= MIRRORING_HIGHER_BOUND;
+    pub fn increment_fine_y(&mut self) {
+        if self.fine_y() == 7 {
+            self.set_fine_y(0);
+            let coarse_y = self.coarse_y();
+
+            if coarse_y == 29 {
+                self.set_coarse_y(0);
+
+                // Flip vertical nametable
+                self.set_nametable(self.nametable() ^ 0b10);
+            } else if coarse_y == 31 {
+                // Specific edge case to emulate, nametable is not flipped
+                self.set_coarse_y(0);
+            } else {
+                self.set_coarse_y(coarse_y + 1)
+            }
+        } else {
+            self.set_fine_y(self.fine_y() + 1);
+        }
+    }
+
+    pub fn reset_x(&mut self, other: &Self) {
+        self.set_coarse_x(other.coarse_x());
+
+        // Reset only x part of nametable
+        let nametable = (self.nametable() & 0b10) | (other.nametable() & 0b01);
+        self.set_nametable(nametable);
+    }
+
+    pub fn reset_y(&mut self, other: &Self) {
+        self.set_coarse_y(other.coarse_y());
+        self.set_fine_y(other.fine_y());
+
+        // Reset only y part of nametable
+        let nametable = (self.nametable() & 0b01) | (other.nametable() & 0b10);
+        self.set_nametable(nametable);
     }
 }
 
@@ -110,16 +142,6 @@ impl ControlReg {
         }
     }
 
-    pub fn nametable_base_addr(&self) -> u16 {
-        match self.bits & 0b11 {
-            0 => 0x2000,
-            1 => 0x2400,
-            2 => 0x2800,
-            3 => 0x2c00,
-            _ => unreachable!(),
-        }
-    }
-
     pub fn sprite_pattern_base_addr(&self) -> u16 {
         if self.contains(Self::SPRITE_PATTERN_ADDR) {
             0x1000
@@ -152,48 +174,6 @@ impl ControlReg {
         } else {
             0
         }
-    }
-}
-
-// == scroll register == //
-
-/// http://wiki.nesdev.com/w/index.php/PPU_registers#PPUSCROLL
-pub struct ScrollReg {
-    scroll_x: u8,
-    scroll_y: u8,
-    latch: bool,
-}
-
-impl Default for ScrollReg {
-    fn default() -> Self {
-        ScrollReg {
-            scroll_x: 0,
-            scroll_y: 0,
-            latch: false,
-        }
-    }
-}
-
-impl ScrollReg {
-    pub fn write(&mut self, data: u8) {
-        if self.latch {
-            self.scroll_y = data;
-        } else {
-            self.scroll_x = data;
-        }
-        self.latch = !self.latch;
-    }
-
-    pub fn reset_latch(&mut self) {
-        self.latch = false;
-    }
-
-    pub fn scroll_x(&self) -> u8 {
-        self.scroll_x
-    }
-
-    pub fn scroll_y(&self) -> u8 {
-        self.scroll_y
     }
 }
 
@@ -276,45 +256,5 @@ impl Default for MaskReg {
 impl MaskReg {
     pub fn write(&mut self, data: u8) {
         self.bits = data;
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn vram_addr_mirroring() {
-        let mut reg = VramAddr {
-            value: 0b1001_1110_1111_1111,
-            latch: true,
-        };
-        reg.mirror();
-        assert_eq!(reg.get(), 0b0001_1110_1111_1111);
-    }
-
-    #[test]
-    fn vram_addr_load() {
-        let mut reg = VramAddr::default();
-        reg.load(0xAC);
-        assert_eq!(reg.get(), 0x2C00);
-        reg.load(0x5F);
-        assert_eq!(reg.get(), 0x2C5F);
-        reg.load(0x06);
-        assert_eq!(reg.get(), 0x065F);
-        reg.load(0x00);
-        assert_eq!(reg.get(), 0x0600);
-    }
-
-    #[test]
-    fn vram_addr_inc() {
-        let mut reg = VramAddr::default();
-        reg.load(0x3F);
-        reg.load(0xFF);
-        assert_eq!(reg.get(), 0x3FFF);
-        reg.inc(0x01);
-        assert_eq!(reg.get(), 0x0000);
-        reg.inc(0x0F);
-        assert_eq!(reg.get(), 0x000F);
     }
 }
