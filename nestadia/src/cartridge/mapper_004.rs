@@ -226,4 +226,16 @@ impl Mapper for Mapper004 {
     fn get_sram(&self) -> Option<&[u8]> {
         Some(&self.ram_data)
     }
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8> {
+        match addr {
+            0x0000..=0x7FFF => None,
+            // The bank selector select 8KB banks, so divide by 2 to get 16KB bank
+            0x8000..=0x9FFF => Some(self.prg_bank_selector[0] / 2),
+            0xA000..=0xBFFF => Some(self.prg_bank_selector[1] / 2),
+            0xC000..=0xDFFF => Some(self.prg_bank_selector[2] / 2),
+            0xE000..=0xFFFF => Some(self.prg_bank_selector[3] / 2),
+        }
+    }
 }

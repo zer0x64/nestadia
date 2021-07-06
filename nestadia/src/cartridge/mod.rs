@@ -13,11 +13,11 @@ use core::convert::TryFrom as _;
 
 use self::ines_header::{Flags6, INesHeader};
 use self::mapper_000::Mapper000;
+use self::mapper_001::Mapper001;
 use self::mapper_002::Mapper002;
 use self::mapper_003::Mapper003;
 use self::mapper_004::Mapper004;
 use self::mapper_066::Mapper066;
-use crate::cartridge::mapper_001::Mapper001;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Mirroring {
@@ -59,6 +59,9 @@ trait Mapper: Send + Sync {
     }
     fn irq_clear(&mut self) {}
     fn irq_scanline(&mut self) {}
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8>;
 }
 
 pub struct Cartridge {
@@ -195,13 +198,7 @@ impl Cartridge {
     }
 
     #[cfg(feature = "debugger")]
-    pub fn disassemble(&self) -> Vec<(u16, alloc::string::String)> {
-        let mut disas1 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x4000);
-        let disas2 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0x8000);
-        let disas3 = crate::cpu::disassembler::disassemble(&self.prg_memory, 0xc000);
-
-        disas1.extend(disas2);
-        disas1.extend(disas3);
-        disas1
+    pub fn get_prg_bank(&self, addr: u16) -> Option<u8> {
+        self.mapper.get_prg_bank(addr)
     }
 }

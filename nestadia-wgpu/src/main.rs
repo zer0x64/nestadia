@@ -25,7 +25,12 @@ use structopt::StructOpt;
 struct Opt {
     #[structopt(parse(from_os_str))]
     rom: Option<PathBuf>,
+
+    #[structopt(short = "p", long)]
+    start_paused: bool,
 }
+
+mod debugger;
 
 bitflags! {
     #[derive(Default)]
@@ -99,6 +104,9 @@ struct State {
     emulator: Emulator,
     controller1: ControllerState,
     last_frame_time: Instant,
+
+    paused: bool,
+    breakpoints: Vec<u16>,
 
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -333,6 +341,9 @@ impl State {
             controller1: Default::default(),
             last_frame_time: Instant::now(),
 
+            paused: false,
+            breakpoints: Vec::new(),
+
             surface,
             device,
             queue,
@@ -398,37 +409,75 @@ impl State {
 
     /// Update the game state
     fn update(&mut self) {
-        // Clock until a frame is ready
-        let frame = loop {
-            if let Some(frame) = self.emulator.clock() {
-                break frame;
+        if self.paused {
+            let frame = self.debugger_prompt();
+
+            if let Some(frame) = frame {
+                let mut current_frame = [0u8; NUM_PIXELS * 4];
+                nestadia::frame_to_rgba(&frame, &mut current_frame);
+
+                // Update texture
+                let texture_size = wgpu::Extent3d {
+                    width: 256,
+                    height: 240,
+                    depth_or_array_layers: 1,
+                };
+
+                self.queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &self.screen_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                    },
+                    &current_frame,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * 256),
+                        rows_per_image: std::num::NonZeroU32::new(240),
+                    },
+                    texture_size,
+                );
             }
-        };
+        } else {
+            // Clock until a frame is ready
+            let frame = loop {
+                if self.breakpoints.contains(&self.emulator.cpu().pc) {
+                    println!("Reached breakpoint at {:#06x}", self.emulator.cpu().pc);
+                    self.paused = true;
+                    break None;
+                }
+                if let Some(frame) = self.emulator.clock() {
+                    break Some(frame);
+                }
+            };
 
-        let mut current_frame = [0u8; NUM_PIXELS * 4];
-        nestadia::frame_to_rgba(&frame, &mut current_frame);
+            if let Some(frame) = frame {
+                let mut current_frame = [0u8; NUM_PIXELS * 4];
+                nestadia::frame_to_rgba(&frame, &mut current_frame);
 
-        // Update texture
-        let texture_size = wgpu::Extent3d {
-            width: 256,
-            height: 240,
-            depth_or_array_layers: 1,
-        };
+                // Update texture
+                let texture_size = wgpu::Extent3d {
+                    width: 256,
+                    height: 240,
+                    depth_or_array_layers: 1,
+                };
 
-        self.queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &self.screen_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &current_frame,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * 256),
-                rows_per_image: std::num::NonZeroU32::new(240),
-            },
-            texture_size,
-        );
+                self.queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &self.screen_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                    },
+                    &current_frame,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * 256),
+                        rows_per_image: std::num::NonZeroU32::new(240),
+                    },
+                    texture_size,
+                );
+            }
+        }
     }
 
     /// Render the screen
@@ -484,6 +533,11 @@ impl State {
             }
         }
     }
+
+    fn pause(&mut self) {
+        self.paused = true;
+        println!("Emulator is paused");
+    }
 }
 
 fn main() {
@@ -528,6 +582,9 @@ fn main() {
 
     // Wait until WGPU is ready
     let mut state = block_on(State::new(&window, emulator));
+    if opt.start_paused {
+        state.pause();
+    }
 
     // Handle window events
     event_loop.run(move |event, _, control_flow| match event {
@@ -584,6 +641,18 @@ fn main() {
                         state.save_data(&save_path);
 
                         *control_flow = ControlFlow::Exit
+                    }
+
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::P),
+                                ..
+                            },
+                        ..
+                    } => {
+                        state.pause();
                     }
                     _ => {}
                 }

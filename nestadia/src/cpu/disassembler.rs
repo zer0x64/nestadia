@@ -22,7 +22,7 @@ pub enum AddressingMode {
 }
 
 impl AddressingMode {
-    fn required_bytes(&self) -> usize {
+    fn required_bytes(&self) -> u16 {
         match &self {
             AddressingMode::Accumulator => 0,
             AddressingMode::Immediate => 1,
@@ -48,7 +48,7 @@ impl AddressingMode {
             AddressingMode::Relative => {
                 let offset = data[0];
                 let address = if offset <= 0x80 {
-                    pc + (offset as u16)
+                    pc.wrapping_add(offset as u16)
                 } else {
                     pc - (0xff - offset as u16) + 1
                 };
@@ -68,34 +68,41 @@ impl AddressingMode {
     }
 }
 
-pub fn disassemble(mem: &[u8], start: u16) -> Vec<(u16, String)> {
-    let mut index: usize = 0;
+pub fn disassemble(
+    cart: &crate::cartridge::Cartridge,
+    start: u16,
+) -> Vec<(Option<u8>, u16, String)> {
+    let mut addr: u16 = start;
     let mut disassembly = Vec::new();
 
-    while index < mem.len() {
+    while addr < 0xFFFF {
         let mut disas = String::new();
-        if let Ok(opcode) = Opcode::try_from(mem[index]) {
+        let prg_bank = cart.get_prg_bank(addr);
+        if let Ok(opcode) = Opcode::try_from(cart.read_prg_mem(addr)) {
             disas += &format!("{:?}", &opcode)[..3].to_lowercase();
 
             let required_bytes = opcode.addressing_mode().required_bytes();
 
             if required_bytes < 1 {
-                disassembly.push((start + (index as u16), disas));
-                index += 1;
-            } else if required_bytes < (mem.len() - index) {
+                disassembly.push((prg_bank, addr, disas));
+                addr += 1;
+            } else if required_bytes < (0xFFFF - addr) {
+                let data = (0..required_bytes)
+                    .map(|i| cart.read_prg_mem(addr + i + 1))
+                    .collect::<Vec<_>>();
+
                 disas += " ";
                 disas += &opcode
                     .addressing_mode()
-                    .format(&mem[index + 1..], start + (index as u16));
-                disassembly.push((start + (index as u16), disas));
-                index += 1;
-                index += required_bytes;
+                    .format(data.as_slice(), addr + required_bytes + 1);
+                disassembly.push((prg_bank, addr, disas));
+                addr += required_bytes + 1;
             } else {
-                index += 1;
+                addr += 1;
             }
         } else {
-            disassembly.push((start + (index as u16), "???".to_string()));
-            index += 1;
+            disassembly.push((prg_bank, addr, "???".to_string()));
+            addr += 1;
         }
     }
 
