@@ -25,6 +25,9 @@ use structopt::StructOpt;
 struct Opt {
     #[structopt(parse(from_os_str))]
     rom: Option<PathBuf>,
+
+    #[structopt(short = "p", long)]
+    start_paused: bool,
 }
 
 mod debugger;
@@ -533,6 +536,7 @@ impl State {
 
     fn pause(&mut self) {
         self.paused = true;
+        println!("Emulator is paused");
     }
 }
 
@@ -578,6 +582,9 @@ fn main() {
 
     // Wait until WGPU is ready
     let mut state = block_on(State::new(&window, emulator));
+    if opt.start_paused {
+        state.pause();
+    }
 
     // Handle window events
     event_loop.run(move |event, _, control_flow| match event {
@@ -646,7 +653,6 @@ fn main() {
                         ..
                     } => {
                         state.pause();
-                        println!("Emulator is paused");
                     }
                     _ => {}
                 }
