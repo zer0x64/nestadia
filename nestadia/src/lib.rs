@@ -124,8 +124,20 @@ impl Emulator {
         &self,
         start: u16,
         end: u16,
-    ) -> alloc::vec::Vec<(u16, alloc::string::String)> {
-        self.cartridge.disassemble()
+    ) -> alloc::vec::Vec<(Option<u8>, u16, alloc::string::String)> {
+        crate::cpu::disassembler::disassemble(&self.cartridge, 0x4020)
+    }
+
+    #[cfg(feature = "debugger")]
+    pub fn mem_dump(&mut self, start: u16, end: u16) -> alloc::vec::Vec<u8> {
+        let mut data = alloc::vec::Vec::new();
+
+        for addr in start..=end {
+            let mut bus = borrow_cpu_bus!(self);
+            data.push(self.cpu.mem_dump(&mut bus, addr));
+        }
+
+        data
     }
 
     #[cfg(feature = "debugger")]

@@ -42,4 +42,13 @@ impl Mapper for Mapper003 {
     fn get_sram(&self) -> Option<&[u8]> {
         None
     }
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8> {
+        match addr {
+            0x8000..=0xBFFF => Some(0),
+            0xC000..=0xFFFF => Some(1),
+            _ => None,
+        }
+    }
 }

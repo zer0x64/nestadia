@@ -1520,6 +1520,11 @@ impl Cpu {
 
         self.pc = result;
     }
+
+    #[cfg(feature = "debugger")]
+    pub fn mem_dump(&mut self, bus: &mut CpuBus<'_>, addr: u16) -> u8 {
+        bus.read(addr)
+    }
 }
 
 impl CpuBus<'_> {
