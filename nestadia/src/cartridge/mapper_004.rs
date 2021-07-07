@@ -14,10 +14,13 @@ pub struct Mapper004 {
     target_register: u8,
     ram_data: Vec<u8>,
 
+    last_chr_bank_bit: bool, // Used to detect changed between sprites and background rendering for scanline counter
+
     irq_enabled: bool,
     irq_active: bool,
+    irq_reload: bool,
     irq_counter: u8,
-    irq_reload: u8,
+    irq_latch: u8,
 }
 
 impl Mapper004 {
@@ -33,10 +36,13 @@ impl Mapper004 {
             target_register: 0,
             ram_data: vec![0u8; 0x2000],
 
+            last_chr_bank_bit: false,
+
             irq_active: false,
             irq_enabled: false,
+            irq_reload: false,
             irq_counter: 0,
-            irq_reload: 0,
+            irq_latch: 0,
         }
     }
 }
@@ -136,10 +142,10 @@ impl Mapper for Mapper004 {
             0xC000..=0xDFFF => {
                 if (addr & 0x01) == 0 {
                     // IRQ latch
-                    self.irq_reload = data;
+                    self.irq_latch = data;
                 } else {
                     // IRQ reload
-                    self.irq_counter = 0;
+                    self.irq_reload = true;
                 }
             }
             0xE000..=0xFFFF => {
@@ -159,7 +165,24 @@ impl Mapper for Mapper004 {
         }
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
+        let chr_bank_bit = addr & 0x1000 == 0x1000;
+        if !self.last_chr_bank_bit && chr_bank_bit {
+            // Rising edge of scanline counter
+            if self.irq_counter == 0 || self.irq_reload {
+                self.irq_counter = self.irq_latch;
+                self.irq_reload = false;
+            } else {
+                self.irq_counter -= 1;
+            };
+
+            if self.irq_counter == 0 && self.irq_enabled {
+                self.irq_active = true;
+            };
+        }
+
+        self.last_chr_bank_bit = chr_bank_bit;
+
         match addr {
             0x0000..=0x03FF => {
                 (self.chr_bank_selector[0] as usize) * 0x0400 + (addr & 0x03FF) as usize
@@ -209,18 +232,6 @@ impl Mapper for Mapper004 {
 
     fn irq_clear(&mut self) {
         self.irq_active = false;
-    }
-
-    fn irq_scanline(&mut self) {
-        if self.irq_counter == 0 {
-            self.irq_counter = self.irq_reload;
-        } else {
-            self.irq_counter -= 1;
-        }
-
-        if self.irq_counter == 0 && self.irq_enabled {
-            self.irq_active = true;
-        }
     }
 
     fn get_sram(&self) -> Option<&[u8]> {

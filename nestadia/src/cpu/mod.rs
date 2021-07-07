@@ -61,7 +61,6 @@ impl Cpu {
         self.cycles = 8;
         self.status_register = StatusRegister::U | StatusRegister::I;
         self.pc = u16::from(bus.read(PC_START)) | (u16::from(bus.read(PC_START + 1)) << 8);
-        // self.pc = 0xC000;
     }
 
     pub fn irq(&mut self, bus: &mut CpuBus<'_>) {

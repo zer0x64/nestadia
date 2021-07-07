@@ -27,7 +27,7 @@ impl Mapper for Mapper000 {
         );
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
         addr as usize
     }
 

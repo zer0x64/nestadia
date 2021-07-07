@@ -28,7 +28,7 @@ impl Mapper for Mapper066 {
         self.prg_bank_selector = (data & 0x30) >> 4;
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
         (self.chr_bank_selector as usize) * 0x2000 + addr as usize
     }
 

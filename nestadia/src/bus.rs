@@ -201,8 +201,4 @@ impl PpuBus<'_> {
             },
         }
     }
-
-    pub fn irq_scanline(&mut self) {
-        self.cartridge.irq_scanline();
-    }
 }

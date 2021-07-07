@@ -156,7 +156,7 @@ impl Mapper for Mapper001 {
         }
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
         if (self.control_register & CHR_MODE_MASK) != 0 {
             // 4K CHR mode
             match addr {
