@@ -49,7 +49,7 @@ enum CartridgeReadTarget {
 trait Mapper: Send + Sync {
     fn cpu_map_read(&self, addr: u16) -> CartridgeReadTarget;
     fn cpu_map_write(&mut self, addr: u16, data: u8);
-    fn ppu_map_read(&self, addr: u16) -> usize;
+    fn ppu_map_read(&mut self, addr: u16) -> usize; // This is mutable because of side effects on some mapper that serves as a scanline counter
     fn ppu_map_write(&self, addr: u16) -> Option<usize>;
     fn mirroring(&self) -> Mirroring;
     fn get_sram(&self) -> Option<&[u8]>;
@@ -58,7 +58,9 @@ trait Mapper: Send + Sync {
         false
     }
     fn irq_clear(&mut self) {}
-    fn irq_scanline(&mut self) {}
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8>;
 }
 
 pub struct Cartridge {
@@ -144,7 +146,9 @@ impl Cartridge {
 
     pub fn read_prg_mem(&self, addr: u16) -> u8 {
         match self.mapper.cpu_map_read(addr) {
-            CartridgeReadTarget::PrgRom(rom_addr) => self.prg_memory[rom_addr],
+            CartridgeReadTarget::PrgRom(rom_addr) => {
+                self.prg_memory[rom_addr % self.prg_memory.len()]
+            }
             CartridgeReadTarget::PrgRam(data) => data,
         }
     }
@@ -153,13 +157,9 @@ impl Cartridge {
         self.mapper.cpu_map_write(addr, data);
     }
 
-    pub fn read_chr_mem(&self, addr: u16) -> u8 {
+    pub fn read_chr_mem(&mut self, addr: u16) -> u8 {
         let addr = self.mapper.ppu_map_read(addr);
-        if addr < self.chr_memory.len() {
-            self.chr_memory[addr]
-        } else {
-            0
-        }
+        self.chr_memory[addr % self.chr_memory.len()]
     }
 
     pub fn write_chr_mem(&mut self, addr: u16, data: u8) {
@@ -188,10 +188,6 @@ impl Cartridge {
         let state = self.mapper.irq_state();
         self.mapper.irq_clear();
         state
-    }
-
-    pub fn irq_scanline(&mut self) {
-        self.mapper.irq_scanline()
     }
 
     #[cfg(feature = "debugger")]
