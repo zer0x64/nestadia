@@ -154,3 +154,15 @@ pub fn frame_to_rgba(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
         output[i * 4 + 3] = 0xff;
     }
 }
+
+pub fn frame_to_argb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+    for i in 0..frame.len() {
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff;
+
+        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
+        output[i * 4] = f[0];
+        output[i * 4 + 1] = f[1];
+        output[i * 4 + 2] = f[2];
+    }
+}

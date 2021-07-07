@@ -15,6 +15,8 @@ use libretro_backend::{CoreInfo, AudioVideoInfo, PixelFormat, GameData, LoadGame
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
 
+const MOCK_AUDIO: [i16; 1470] = [0i16; 1470];
+
 bitflags! {
     #[derive(Default)]
     struct ControllerState: u8 {
@@ -80,9 +82,18 @@ impl libretro_backend::Core for State {
             None
         };
 
+        // Get the game data
+        let data: &[u8] = match game_data.data() {
+            None => {
+                return LoadGameResult::Failed(game_data);
+            },
+            Some(data) => { data }
+        };
+
         // Create emulator instance
-        let emulator = Emulator::new(game_data.data().expect("No game data could be found."), save_file).expect("Rom parsing failed");
+        let emulator = Emulator::new(data, save_file).expect("Rom parsing failed");
         self.emulator = Some(emulator);
+        self.game_data = Some(game_data);
         // return failed a la place
 
         // Create **dummy** AV info
@@ -95,7 +106,7 @@ impl libretro_backend::Core for State {
     }
 
     fn on_unload_game(&mut self) -> GameData {
-        self.game_data.take().expect("Tried to unload a game while already being unloaded.")
+        self.game_data.take().expect("Tried to unload a game while already being unloaded.") // erreur a été called 2 fois?
     }
 
     fn on_run(&mut self, handle: &mut RuntimeHandle) {
@@ -110,9 +121,10 @@ impl libretro_backend::Core for State {
                 };
         
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
-                nestadia::frame_to_rgba(&frame, &mut current_frame);
+                nestadia::frame_to_argb(&frame, &mut current_frame);
 
                 handle.upload_video_frame(&current_frame);
+                handle.upload_audio_frame(&MOCK_AUDIO);
             },
             None => { }
         }
