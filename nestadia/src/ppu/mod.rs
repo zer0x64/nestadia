@@ -292,11 +292,18 @@ impl Ppu {
 
                     // Palette table:
                     0x3F00..=0x3FFF => {
-                        if read_addr & 0b11 == 0 {
+                        let color = if read_addr & 0b11 == 0 {
                             // Mirror to the universal background color
                             self.palette_table[usize::from(read_addr & 0x0f)]
                         } else {
                             self.palette_table[usize::from(read_addr & 0x1f)]
+                        };
+
+                        // Apply greyscale to reads
+                        if self.mask_reg.contains(registers::MaskReg::GREYSCALE) {
+                            color & 0x30
+                        } else {
+                            color
                         }
                     }
 
@@ -495,6 +502,12 @@ impl Ppu {
     }
 
     fn set_pixel(&mut self, x: u16, y: u16, color: u8) {
+        let color = if self.mask_reg.contains(registers::MaskReg::GREYSCALE) {
+            color & 0x30
+        } else {
+            color
+        };
+
         let idx = y as usize * FRAME_WIDTH + x as usize;
         if idx < self.frame.len() {
             self.frame[idx] = color;
@@ -796,13 +809,18 @@ impl Ppu {
                             self.secondary_oam[((sprite_idx << 2) | sprite_cycle) as usize];
                     }
                     3 => {
+                        let y = (self.scanline as u16).wrapping_sub(self.oam_temp_y_buffer as u16);
+
                         let x = self.secondary_oam[((sprite_idx << 2) | sprite_cycle) as usize];
 
-                        self.sprites_x_counter[sprite_idx as usize] = if x == 0 {
-                            SpriteXCounter::Rendering(0)
-                        } else {
-                            SpriteXCounter::NotRendered(x)
-                        };
+                        self.sprites_x_counter[sprite_idx as usize] =
+                            if y >= (self.ctrl_reg.sprite_size() as u16) {
+                                SpriteXCounter::WontRender
+                            } else if x == 0 {
+                                SpriteXCounter::Rendering(0)
+                            } else {
+                                SpriteXCounter::NotRendered(x)
+                            };
                     }
                     5 => {
                         let y = (self.scanline as u16).wrapping_sub(self.oam_temp_y_buffer as u16);
