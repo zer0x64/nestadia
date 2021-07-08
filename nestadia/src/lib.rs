@@ -146,23 +146,23 @@ pub fn frame_to_rgb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
 pub fn frame_to_rgba(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
     for i in 0..frame.len() {
         let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 4] = f[0];
-        output[i * 4 + 1] = f[1];
-        output[i * 4 + 2] = f[2];
+        output[i * 4] = f[0]; // R
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[2]; // B
 
         // Alpha is always 0xff because it's opaque
-        output[i * 4 + 3] = 0xff;
+        output[i * 4 + 3] = 0xff; // A
     }
 }
 
 pub fn frame_to_argb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
     for i in 0..frame.len() {
-        // Alpha is always 0xff because it's opaque
-        output[i * 4 + 3] = 0xff;
-
         let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 4] = f[0];
-        output[i * 4 + 1] = f[1];
-        output[i * 4 + 2] = f[2];
+        output[i * 4] = f[2]; // B
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[0]; // R
+
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff; // A
     }
 }
