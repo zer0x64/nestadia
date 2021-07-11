@@ -1550,8 +1550,11 @@ impl CpuBus<'_> {
                 // This will requires a refactor so I'm postponing this task as I need
                 // to get PPU working ASAP.
             }
-            0x4016 => self.controller1_write(data),
-            0x4017 => self.controller2_write(data),
+            0x4016 => {
+                self.controller1_write(data);
+                self.controller2_write(data);
+            },
+            0x4017 => { },
             0x4018..=0x401F => (), // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.write_prg_mem(addr, data),
         };
