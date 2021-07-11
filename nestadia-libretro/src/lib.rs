@@ -6,10 +6,8 @@ extern crate nestadia;
 
 use bitflags::bitflags;
 use std::vec::Vec;
-use std::io::Read;
-use std::path::PathBuf;
 use nestadia::Emulator;
-use libretro_backend::{CoreInfo, AudioVideoInfo, PixelFormat, GameData, LoadGameResult, Region, RuntimeHandle, JoypadButton};
+use libretro_backend::{AudioVideoInfo, Core, CoreInfo, GameData, JoypadButton, LoadGameResult, PixelFormat, Region, RuntimeHandle};
 
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
@@ -50,6 +48,7 @@ impl ControllerState {
 pub struct State {
     emulator: Option<Emulator>,
     game_data: Option<GameData>,
+    save_data: Option<Vec<u8>>,
     controller1: ControllerState,
     controller2: ControllerState
 }
@@ -59,6 +58,7 @@ impl State {
         State {
             emulator: None,
             game_data: None,
+            save_data: None,
             controller1: ControllerState::NONE,
             controller2: ControllerState::NONE
         }
@@ -67,60 +67,47 @@ impl State {
 
 impl Default for State {
     fn default() -> Self {
-            
         return State::new();
     }
 }
 
-impl libretro_backend::Core for State {
+impl Core for State {
     fn info() -> CoreInfo {
         CoreInfo::new("Nestadia", env!("CARGO_PKG_VERSION")).supports_roms_with_extension("nes")
     }
 
     fn on_load_game(&mut self, game_data: GameData) -> LoadGameResult {
+        println!("Loading game...");
+        
         if game_data.is_empty() {
             return LoadGameResult::Failed(game_data);
         }
 
-        let game_data_path = match game_data.path() {
-            None => {
-                return LoadGameResult::Failed(game_data);
-            },
-            Some(path) => { path }
-        };
+        // Note: libretro seems to give both the option to get the game's data from data() and
+        // from a path to the file from which we could read the data ourselves. For now, I just get it from data().
 
-        // Get the path supplied and prepare it to be used as rom and save paths by the Core
-        let mut path = PathBuf::new();
-        path.set_file_name(game_data_path);
-
-        let mut save_path = path.clone();
-        save_path.set_extension("sav");
-
-        // Read the save file
-        let mut save_buf = Vec::new();
-        let save_file = if let Ok(mut file) = std::fs::File::open(&save_path) {
-            let _ = file.read_to_end(&mut save_buf);
-            Some(save_buf.as_slice())
-        } else {
-            None
-        };
-
-        // Get the game data
-        let data = match game_data.data() {
+        // Get the rom data
+        let rom_data = match game_data.data() {
             None => {
                 println!("Failed to retrieve game data");
                 return LoadGameResult::Failed(game_data);
             },
-            Some(data) => { data }
+            Some(data) => data
+        };
+
+        // Get the save data TODO
+        let save_data = match &mut self.save_data {
+            None => None,
+            Some(save) => Some(save.as_slice())
         };
 
         // Create emulator instance
-        let emulator = match Emulator::new(data, save_file) {
+        let emulator = match Emulator::new(rom_data, save_data) {
             Err(_) => {
                 println!("Rom parsing failed");
                 return LoadGameResult::Failed(game_data);
             },
-            Ok(emulator) => { emulator }
+            Ok(emulator) => emulator
         };
 
         self.emulator = Some(emulator);
@@ -136,16 +123,13 @@ impl libretro_backend::Core for State {
     }
 
     fn on_unload_game(&mut self) -> GameData {
-        self.game_data.take().expect("Tried to unload a game while already being unloaded.") // l'erreur est callée 2 fois?
+        self.game_data.take().expect("Tried to unload a game while already being unloaded.")
     }
 
     fn on_run(&mut self, handle: &mut RuntimeHandle) {
-
         let emulator = match &mut self.emulator {
-            Some(emulator) => {
-                emulator
-            },
-            None => { return; }
+            None => { return; },
+            Some(emulator) => emulator
         };
 
         let frame = loop {
@@ -166,24 +150,24 @@ impl libretro_backend::Core for State {
                 $(
                     let controller_state: ControllerState = match ControllerState::from(JoypadButton::$button) {
                         ControllerState::NONE => { return; },
-                        state => { state }
+                        state => state
                     };
             
                     // Setting controller 1 button state
                     if handle.is_joypad_button_pressed(0, JoypadButton::$button) {
                         self.controller1 |= controller_state;
+
                     } else if self.controller1.contains(controller_state) {
-            
                         self.controller1 &= !controller_state;
                     }
 
                     // Setting controller 2 button state
-                    /*if handle.is_joypad_button_pressed(1, JoypadButton::$button) {
+                    if handle.is_joypad_button_pressed(1, JoypadButton::$button) {
                         self.controller2 |= controller_state;
+
                     } else if self.controller2.contains(controller_state) {
-            
                         self.controller2 &= !controller_state;
-                    }*/
+                    }
                 )+
             )
         }
@@ -191,24 +175,26 @@ impl libretro_backend::Core for State {
         update_controllers!(A, B, Up, Down, Left, Right, Select, Start);
 
         emulator.set_controller1(self.controller1.bits());
-        // emulator.set_controller2(self.controller2.bits());
+        emulator.set_controller2(self.controller2.bits());
     }
 
     fn on_reset(&mut self) {
         match &mut self.emulator {
+            None => { },
             Some(emu) => {
                 emu.reset();
-            },
-            None => { }
+            }
+            
         }
     }
 
     fn save_memory(&mut self) -> Option<&mut [u8]> {
-        None // Not implemented
+        println!("Accessing SRAM...");
+        None // TODO
     }
 
     fn rtc_memory( &mut self ) -> Option< &mut [u8] > {
-        None // Not implemented
+        None // Not implemented (and most likely not needed)
     }
 
     fn system_memory( &mut self ) -> Option< &mut [u8] > {
