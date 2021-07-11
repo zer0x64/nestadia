@@ -5,9 +5,12 @@ extern crate bitflags;
 extern crate nestadia;
 
 use bitflags::bitflags;
-use std::vec::Vec;
+use libretro_backend::{
+    AudioVideoInfo, Core, CoreInfo, GameData, JoypadButton, LoadGameResult, PixelFormat, Region,
+    RuntimeHandle,
+};
 use nestadia::Emulator;
-use libretro_backend::{AudioVideoInfo, Core, CoreInfo, GameData, JoypadButton, LoadGameResult, PixelFormat, Region, RuntimeHandle};
+use std::vec::Vec;
 
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
@@ -40,7 +43,7 @@ impl ControllerState {
             JoypadButton::Left => ControllerState::LEFT,
             JoypadButton::Right => ControllerState::RIGHT,
             JoypadButton::Up => ControllerState::UP,
-            _ => ControllerState::NONE
+            _ => ControllerState::NONE,
         }
     }
 }
@@ -50,7 +53,7 @@ pub struct State {
     game_data: Option<GameData>,
     save_data: Option<Vec<u8>>,
     controller1: ControllerState,
-    controller2: ControllerState
+    controller2: ControllerState,
 }
 
 impl State {
@@ -60,14 +63,14 @@ impl State {
             game_data: None,
             save_data: None,
             controller1: ControllerState::NONE,
-            controller2: ControllerState::NONE
+            controller2: ControllerState::NONE,
         }
     }
 }
 
 impl Default for State {
     fn default() -> Self {
-        return State::new();
+        State::new()
     }
 }
 
@@ -78,7 +81,7 @@ impl Core for State {
 
     fn on_load_game(&mut self, game_data: GameData) -> LoadGameResult {
         println!("Loading game...");
-        
+
         if game_data.is_empty() {
             return LoadGameResult::Failed(game_data);
         }
@@ -91,23 +94,20 @@ impl Core for State {
             None => {
                 println!("Failed to retrieve game data");
                 return LoadGameResult::Failed(game_data);
-            },
-            Some(data) => data
+            }
+            Some(data) => data,
         };
 
         // Get the save data TODO
-        let save_data = match &mut self.save_data {
-            None => None,
-            Some(save) => Some(save.as_slice())
-        };
+        let save_data = self.save_data.as_deref();
 
         // Create emulator instance
         let emulator = match Emulator::new(rom_data, save_data) {
             Err(_) => {
                 println!("Rom parsing failed");
                 return LoadGameResult::Failed(game_data);
-            },
-            Ok(emulator) => emulator
+            }
+            Ok(emulator) => emulator,
         };
 
         self.emulator = Some(emulator);
@@ -115,21 +115,25 @@ impl Core for State {
 
         // This info is just what's expected and is static for now. We might need to change it later if need be.
         let av_info = AudioVideoInfo::new()
-            .video( 256, 240, 60.00, PixelFormat::ARGB8888)
-            .audio( 44100.0 )
-            .region( Region::NTSC );
+            .video(256, 240, 60.00, PixelFormat::ARGB8888)
+            .audio(44100.0)
+            .region(Region::NTSC);
 
-        return LoadGameResult::Success(av_info);
+        LoadGameResult::Success(av_info)
     }
 
     fn on_unload_game(&mut self) -> GameData {
-        self.game_data.take().expect("Tried to unload a game while already being unloaded.")
+        self.game_data
+            .take()
+            .expect("Tried to unload a game while already being unloaded.")
     }
 
     fn on_run(&mut self, handle: &mut RuntimeHandle) {
         let emulator = match &mut self.emulator {
-            None => { return; },
-            Some(emulator) => emulator
+            None => {
+                return;
+            }
+            Some(emulator) => emulator,
         };
 
         let frame = loop {
@@ -152,7 +156,7 @@ impl Core for State {
                         ControllerState::NONE => { return; },
                         state => state
                     };
-            
+
                     // Setting controller 1 button state
                     if handle.is_joypad_button_pressed(0, JoypadButton::$button) {
                         self.controller1 |= controller_state;
@@ -180,11 +184,10 @@ impl Core for State {
 
     fn on_reset(&mut self) {
         match &mut self.emulator {
-            None => { },
+            None => {}
             Some(emu) => {
                 emu.reset();
             }
-            
         }
     }
 
@@ -193,17 +196,17 @@ impl Core for State {
         None // TODO
     }
 
-    fn rtc_memory( &mut self ) -> Option< &mut [u8] > {
+    fn rtc_memory(&mut self) -> Option<&mut [u8]> {
         None // Not implemented (and most likely not needed)
     }
 
-    fn system_memory( &mut self ) -> Option< &mut [u8] > {
+    fn system_memory(&mut self) -> Option<&mut [u8]> {
         None // Not implemented
     }
 
-    fn video_memory( &mut self ) -> Option< &mut [u8] > {
+    fn video_memory(&mut self) -> Option<&mut [u8]> {
         None // Not implemented
     }
 }
 
-libretro_core!( State );
+libretro_core!(State);
