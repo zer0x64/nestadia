@@ -10,7 +10,6 @@ use libretro_backend::{
     RuntimeHandle,
 };
 use nestadia::Emulator;
-use std::vec::Vec;
 
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
@@ -51,7 +50,6 @@ impl ControllerState {
 pub struct State {
     emulator: Option<Emulator>,
     game_data: Option<GameData>,
-    save_data: Option<Vec<u8>>,
     controller1: ControllerState,
     controller2: ControllerState,
 }
@@ -61,7 +59,6 @@ impl State {
         State {
             emulator: None,
             game_data: None,
-            save_data: None,
             controller1: ControllerState::NONE,
             controller2: ControllerState::NONE,
         }
@@ -80,8 +77,6 @@ impl Core for State {
     }
 
     fn on_load_game(&mut self, game_data: GameData) -> LoadGameResult {
-        println!("Loading game...");
-
         if game_data.is_empty() {
             return LoadGameResult::Failed(game_data);
         }
@@ -92,19 +87,17 @@ impl Core for State {
         // Get the rom data
         let rom_data = match game_data.data() {
             None => {
-                println!("Failed to retrieve game data");
                 return LoadGameResult::Failed(game_data);
             }
             Some(data) => data,
         };
 
         // Get the save data TODO
-        let save_data = self.save_data.as_deref();
+        let save_data = None;
 
         // Create emulator instance
         let emulator = match Emulator::new(rom_data, save_data) {
             Err(_) => {
-                println!("Rom parsing failed");
                 return LoadGameResult::Failed(game_data);
             }
             Ok(emulator) => emulator,
@@ -113,7 +106,8 @@ impl Core for State {
         self.emulator = Some(emulator);
         self.game_data = Some(game_data);
 
-        // This info is just what's expected and is static for now. We might need to change it later if need be.
+        // This info is just what's expected and is all hard coded for now.
+        // We might need to change it later if need be.
         let av_info = AudioVideoInfo::new()
             .video(256, 240, 60.00, PixelFormat::ARGB8888)
             .audio(44100.0)
@@ -189,23 +183,6 @@ impl Core for State {
                 emu.reset();
             }
         }
-    }
-
-    fn save_memory(&mut self) -> Option<&mut [u8]> {
-        println!("Accessing SRAM...");
-        None // TODO
-    }
-
-    fn rtc_memory(&mut self) -> Option<&mut [u8]> {
-        None // Not implemented (and most likely not needed)
-    }
-
-    fn system_memory(&mut self) -> Option<&mut [u8]> {
-        None // Not implemented
-    }
-
-    fn video_memory(&mut self) -> Option<&mut [u8]> {
-        None // Not implemented
     }
 }
 
