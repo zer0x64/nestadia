@@ -31,18 +31,18 @@ bitflags! {
     }
 }
 
-impl ControllerState {
-    fn from(button: JoypadButton) -> ControllerState {
+impl From<JoypadButton> for ControllerState {
+    fn from(button: JoypadButton) -> Self {
         match button {
-            JoypadButton::A => ControllerState::A,
-            JoypadButton::B => ControllerState::B,
-            JoypadButton::Start => ControllerState::START,
-            JoypadButton::Select => ControllerState::SELECT,
-            JoypadButton::Down => ControllerState::DOWN,
-            JoypadButton::Left => ControllerState::LEFT,
-            JoypadButton::Right => ControllerState::RIGHT,
-            JoypadButton::Up => ControllerState::UP,
-            _ => ControllerState::NONE,
+            JoypadButton::A => Self::A,
+            JoypadButton::B => Self::B,
+            JoypadButton::Start => Self::START,
+            JoypadButton::Select => Self::SELECT,
+            JoypadButton::Down => Self::DOWN,
+            JoypadButton::Left => Self::LEFT,
+            JoypadButton::Right => Self::RIGHT,
+            JoypadButton::Up => Self::UP,
+            _ => Self::NONE,
         }
     }
 }
