@@ -1,0 +1,13 @@
+[package]
+name = "nestadia-libretro"
+version = "0.1.0"
+authors = ["kain"]
+
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bitflags = "1.2.1"
+nestadia = { path = "../nestadia" }
+libretro-backend = "0.2.1"

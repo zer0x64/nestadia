@@ -29,8 +29,7 @@ pub struct Emulator {
     cpu: Cpu,
     controller1: u8,
     controller2: u8,
-    controller1_state: bool,
-    controller2_state: bool,
+    controller_state: bool,
     controller1_snapshot: u8,
     controller2_snapshot: u8,
     ram: [u8; RAM_SIZE as usize],
@@ -51,8 +50,7 @@ impl Emulator {
             cpu: Default::default(),
             controller1: 0,
             controller2: 0,
-            controller1_state: false,
-            controller2_state: false,
+            controller_state: false,
             controller1_snapshot: 0,
             controller2_snapshot: 0,
             ram: [0u8; RAM_SIZE as usize],
@@ -158,11 +156,23 @@ pub fn frame_to_rgb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
 pub fn frame_to_rgba(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
     for i in 0..frame.len() {
         let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 4] = f[0];
-        output[i * 4 + 1] = f[1];
-        output[i * 4 + 2] = f[2];
+        output[i * 4] = f[0]; // R
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[2]; // B
 
         // Alpha is always 0xff because it's opaque
-        output[i * 4 + 3] = 0xff;
+        output[i * 4 + 3] = 0xff; // A
+    }
+}
+
+pub fn frame_to_argb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+    for i in 0..frame.len() {
+        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
+        output[i * 4] = f[2]; // B
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[0]; // R
+
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff; // A
     }
 }

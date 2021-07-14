@@ -5,6 +5,7 @@ members = [
     "./nestadia-server",
     "./nestadia-wasm",
     "./nestadia-wgpu",
+    "./nestadia-libretro",
 ]
 
 [profile.dev]

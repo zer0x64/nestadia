@@ -8,8 +8,7 @@ macro_rules! borrow_cpu_bus {
         $crate::bus::CpuBus::borrow(
             &mut $owner.controller1,
             &mut $owner.controller2,
-            &mut $owner.controller1_state,
-            &mut $owner.controller2_state,
+            &mut $owner.controller_state,
             &mut $owner.controller1_snapshot,
             &mut $owner.controller2_snapshot,
             &mut $owner.ram,
@@ -29,8 +28,7 @@ macro_rules! borrow_ppu_bus {
 pub struct CpuBus<'a> {
     controller1: &'a mut u8,
     controller2: &'a mut u8,
-    controller1_state: &'a mut bool,
-    controller2_state: &'a mut bool,
+    controller_state: &'a mut bool,
     controller1_snapshot: &'a mut u8,
     controller2_snapshot: &'a mut u8,
     ram: &'a mut [u8; RAM_SIZE as usize],
@@ -44,8 +42,7 @@ impl<'a> CpuBus<'a> {
     pub fn borrow(
         controller1: &'a mut u8,
         controller2: &'a mut u8,
-        controller1_state: &'a mut bool,
-        controller2_state: &'a mut bool,
+        controller_state: &'a mut bool,
         controller1_snapshot: &'a mut u8,
         controller2_snapshot: &'a mut u8,
         ram: &'a mut [u8; RAM_SIZE as usize],
@@ -56,8 +53,7 @@ impl<'a> CpuBus<'a> {
         Self {
             controller1,
             controller2,
-            controller1_state,
-            controller2_state,
+            controller_state,
             controller1_snapshot,
             controller2_snapshot,
             ram,
@@ -88,13 +84,14 @@ impl CpuBus<'_> {
         self.ppu.read(&mut ppu_bus, addr)
     }
 
-    pub fn controller1_write(&mut self, data: u8) {
-        *self.controller1_state = data & 0x01 == 0x01;
+    pub fn controller_write(&mut self, data: u8) {
+        *self.controller_state = data & 0x01 == 0x01;
         *self.controller1_snapshot = *self.controller1;
+        *self.controller2_snapshot = *self.controller2;
     }
 
     pub fn read_controller1_snapshot(&mut self) -> u8 {
-        if *self.controller1_state {
+        if *self.controller_state {
             *self.controller1 & 0x80 >> 7
         } else {
             let data = (*self.controller1_snapshot & 0x80) >> 7;
@@ -103,13 +100,8 @@ impl CpuBus<'_> {
         }
     }
 
-    pub fn controller2_write(&mut self, data: u8) {
-        *self.controller2_state = data & 0x01 == 0x01;
-        *self.controller2_snapshot = *self.controller2;
-    }
-
     pub fn read_controller2_snapshot(&mut self) -> u8 {
-        if *self.controller2_state {
+        if *self.controller_state {
             *self.controller2 & 0x80 >> 7
         } else {
             let data = (*self.controller2_snapshot & 0x80) >> 7;
