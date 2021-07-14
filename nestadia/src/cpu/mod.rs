@@ -1550,10 +1550,7 @@ impl CpuBus<'_> {
                 // This will requires a refactor so I'm postponing this task as I need
                 // to get PPU working ASAP.
             }
-            0x4016 => {
-                self.controller1_write(data);
-                self.controller2_write(data);
-            }
+            0x4016 => self.controller_write(data),
             0x4017 => {}
             0x4018..=0x401F => (), // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.write_prg_mem(addr, data),
@@ -1587,8 +1584,7 @@ mod tests {
         cpu: Cpu,
         controller1: u8,
         controller2: u8,
-        controller1_state: bool,
-        controller2_state: bool,
+        controller_state: bool,
         controller1_snapshot: u8,
         controller2_snapshot: u8,
         ram: [u8; RAM_SIZE as usize],
@@ -1622,8 +1618,7 @@ mod tests {
             cpu: Default::default(),
             controller1: 0,
             controller2: 0,
-            controller1_state: false,
-            controller2_state: false,
+            controller_state: false,
             controller1_snapshot: 0,
             controller2_snapshot: 0,
             cartridge: Cartridge::load(&rom, None).unwrap(),
