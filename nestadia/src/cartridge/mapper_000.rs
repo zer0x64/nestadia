@@ -27,7 +27,7 @@ impl Mapper for Mapper000 {
         );
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
         addr as usize
     }
 
@@ -41,5 +41,14 @@ impl Mapper for Mapper000 {
 
     fn get_sram(&self) -> Option<&[u8]> {
         None
+    }
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8> {
+        match addr {
+            0x8000..=0xBFFF => Some(0),
+            0xC000..=0xFFFF => Some(1),
+            _ => None,
+        }
     }
 }

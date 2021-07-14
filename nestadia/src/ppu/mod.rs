@@ -326,7 +326,6 @@ impl Ppu {
         if self.cycle_count >= 341 {
             self.cycle_count = 0;
             self.scanline += 1;
-            bus.irq_scanline();
 
             if self.scanline >= 261 {
                 // http://wiki.nesdev.com/w/index.php/PPU_rendering#Pre-render_scanline_.28-1_or_261.29
@@ -394,8 +393,10 @@ impl Ppu {
         if self.rendering_enabled() {
             // Visible + pre-render scanline
             if self.scanline < 240 {
-                // Sprites are not loaded during the pre-render scanline
-                if self.scanline >= 0 {
+                if self.scanline == -1 {
+                    // Sprites are not loaded during the pre-render scanline
+                    self.sprites_x_counter = Default::default();
+                } else {
                     self.sprites_load_cycle(bus);
                 };
 
@@ -452,18 +453,16 @@ impl Ppu {
                 (true, self.palette_table[0])
             };
 
-        let sprite_pixel = if self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES)
-            && (x >= 8
+        let sprite_pixel = if self.mask_reg.contains(registers::MaskReg::SHOW_SPRITES) {
+            // We still fetch the sprite pixel even if the leftmost 8 pixel are not rendered to make sure the X counters are updated.
+            let sprite_pixel = self.get_sprite_pixel();
+
+            if x >= 8
                 || self
                     .mask_reg
-                    .contains(registers::MaskReg::LEFTMOST_8PXL_SPRITE))
-        {
-            // No sprites are rendered on the first scanline.
-            // Without this check, this renders the leftover from the last scanline of the previous frame
-            // Accuracy note: I haven't found how the actual NES avoid this, but I don't see how
-            //  that could cause any bug to implement it like this
-            if self.scanline > 0 {
-                self.get_sprite_pixel()
+                    .contains(registers::MaskReg::LEFTMOST_8PXL_SPRITE)
+            {
+                sprite_pixel
             } else {
                 None
             }
@@ -809,137 +808,128 @@ impl Ppu {
                         let y = (self.scanline as u16).wrapping_sub(self.oam_temp_y_buffer as u16);
                         let attributes = self.sprites_attributes[sprite_idx as usize];
 
-                        if y < (self.ctrl_reg.sprite_size() as u16) {
-                            if self.ctrl_reg.sprite_size() == 8 {
-                                // 8x8 sprites
-                                let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
+                        if self.ctrl_reg.sprite_size() == 8 {
+                            // 8x8 sprites
+                            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
 
-                                let flipped_y = if attributes >> 7 & 1 == 1 {
-                                    // Y flipped
-                                    7 - y
-                                } else {
-                                    y
-                                };
-
-                                let lo = bus.read_chr_mem(
-                                    bank | ((self.oam_temp_tile_buffer as u16) << 4)
-                                        | (flipped_y as u16),
-                                );
-
-                                let lo = if attributes >> 6 & 1 == 1 {
-                                    // X flipped
-                                    lo
-                                } else {
-                                    lo.reverse_bits()
-                                };
-
-                                self.sprites_pipeline[sprite_idx as usize] = lo;
+                            let flipped_y = if attributes >> 7 & 1 == 1 {
+                                // Y flipped
+                                7u16.wrapping_sub(y)
                             } else {
-                                // 8x16 sprites
-                                let bank = if self.oam_temp_tile_buffer & 0b1 == 1 {
-                                    0x1000
-                                } else {
-                                    0x0000
-                                };
-                                let tile_idx = self.oam_temp_tile_buffer as u16 & 0xfffe;
+                                y
+                            };
 
-                                let flipped_y = if attributes >> 7 & 1 == 1 {
-                                    // It's flipped vertically
-                                    15 - y
-                                } else {
-                                    y
-                                };
+                            let lo = bus.read_chr_mem(
+                                bank | ((self.oam_temp_tile_buffer as u16) << 4)
+                                    | (flipped_y as u16),
+                            );
 
-                                // This is because of the hi/lo parts of the pattern memory
-                                let flipped_y = if flipped_y >= 8 {
-                                    flipped_y + 8
-                                } else {
-                                    flipped_y
-                                };
+                            let lo = if attributes >> 6 & 1 == 1 {
+                                // X flipped
+                                lo
+                            } else {
+                                lo.reverse_bits()
+                            };
 
-                                let lo =
-                                    bus.read_chr_mem(bank | (tile_idx << 4) | (flipped_y as u16));
-
-                                let lo = if attributes >> 6 & 1 == 1 {
-                                    // X flipped
-                                    lo
-                                } else {
-                                    lo.reverse_bits()
-                                };
-
-                                self.sprites_pipeline[sprite_idx as usize] = lo;
-                            }
+                            self.sprites_pipeline[sprite_idx as usize] = lo;
                         } else {
-                            self.sprites_x_counter[sprite_idx as usize] = SpriteXCounter::WontRender
+                            // 8x16 sprites
+                            let bank = if self.oam_temp_tile_buffer & 0b1 == 1 {
+                                0x1000
+                            } else {
+                                0x0000
+                            };
+                            let tile_idx = self.oam_temp_tile_buffer as u16 & 0xfffe;
+
+                            let flipped_y = if attributes >> 7 & 1 == 1 {
+                                // It's flipped vertically
+                                15u16.wrapping_sub(y)
+                            } else {
+                                y
+                            };
+
+                            // This is because of the hi/lo parts of the pattern memory
+                            let flipped_y = if flipped_y >= 8 {
+                                flipped_y.wrapping_add(8)
+                            } else {
+                                flipped_y
+                            };
+
+                            let lo = bus.read_chr_mem(bank | (tile_idx << 4) | (flipped_y as u16));
+
+                            let lo = if attributes >> 6 & 1 == 1 {
+                                // X flipped
+                                lo
+                            } else {
+                                lo.reverse_bits()
+                            };
+
+                            self.sprites_pipeline[sprite_idx as usize] = lo;
                         }
                     }
                     7 => {
                         let y = (self.scanline as u16).wrapping_sub(self.oam_temp_y_buffer as u16);
                         let attributes = self.sprites_attributes[sprite_idx as usize];
 
-                        if y < (self.ctrl_reg.sprite_size() as u16) {
-                            if self.ctrl_reg.sprite_size() == 8 {
-                                // 8x8 sprites
-                                let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
+                        if self.ctrl_reg.sprite_size() == 8 {
+                            // 8x8 sprites
+                            let bank: u16 = self.ctrl_reg.sprite_pattern_base_addr();
 
-                                let flipped_y = if attributes >> 7 & 1 == 1 {
-                                    // Y flipped
-                                    7 - y
-                                } else {
-                                    y
-                                };
-
-                                let hi = bus.read_chr_mem(
-                                    bank | 8
-                                        | ((self.oam_temp_tile_buffer as u16) << 4)
-                                        | (flipped_y as u16),
-                                );
-
-                                let hi = if attributes >> 6 & 1 == 1 {
-                                    // X flipped
-                                    hi
-                                } else {
-                                    hi.reverse_bits()
-                                };
-
-                                self.sprites_pipeline[8 | sprite_idx as usize] = hi;
+                            let flipped_y = if attributes >> 7 & 1 == 1 {
+                                // Y flipped
+                                7u16.wrapping_sub(y)
                             } else {
-                                // 8x16 sprites
-                                let bank = if self.oam_temp_tile_buffer & 0b1 == 1 {
-                                    0x1000
-                                } else {
-                                    0x0000
-                                };
-                                let tile_idx = self.oam_temp_tile_buffer as u16 & 0xfffe;
+                                y
+                            };
 
-                                let flipped_y = if attributes >> 7 & 1 == 1 {
-                                    // It's flipped vertically
-                                    15 - y
-                                } else {
-                                    y
-                                };
+                            let hi = bus.read_chr_mem(
+                                bank | 8
+                                    | ((self.oam_temp_tile_buffer as u16) << 4)
+                                    | (flipped_y as u16),
+                            );
 
-                                // This is because of the hi/lo parts of the pattern memory
-                                let flipped_y = if flipped_y >= 8 {
-                                    flipped_y + 8
-                                } else {
-                                    flipped_y
-                                };
+                            let hi = if attributes >> 6 & 1 == 1 {
+                                // X flipped
+                                hi
+                            } else {
+                                hi.reverse_bits()
+                            };
 
-                                let hi = bus
-                                    .read_chr_mem(bank | 8 | (tile_idx << 4) | (flipped_y as u16));
-
-                                let hi = if attributes >> 6 & 1 == 1 {
-                                    // X flipped
-                                    hi
-                                } else {
-                                    hi.reverse_bits()
-                                };
-
-                                self.sprites_pipeline[8 | sprite_idx as usize] = hi;
-                            }
+                            self.sprites_pipeline[8 | sprite_idx as usize] = hi;
                         } else {
-                            self.sprites_x_counter[sprite_idx as usize] = SpriteXCounter::WontRender
+                            // 8x16 sprites
+                            let bank = if self.oam_temp_tile_buffer & 0b1 == 1 {
+                                0x1000
+                            } else {
+                                0x0000
+                            };
+                            let tile_idx = self.oam_temp_tile_buffer as u16 & 0xfffe;
+
+                            let flipped_y = if attributes >> 7 & 1 == 1 {
+                                // It's flipped vertically
+                                15u16.wrapping_sub(y)
+                            } else {
+                                y
+                            };
+
+                            // This is because of the hi/lo parts of the pattern memory
+                            let flipped_y = if flipped_y >= 8 {
+                                flipped_y.wrapping_add(8)
+                            } else {
+                                flipped_y
+                            };
+
+                            let hi =
+                                bus.read_chr_mem(bank | 8 | (tile_idx << 4) | (flipped_y as u16));
+
+                            let hi = if attributes >> 6 & 1 == 1 {
+                                // X flipped
+                                hi
+                            } else {
+                                hi.reverse_bits()
+                            };
+
+                            self.sprites_pipeline[8 | sprite_idx as usize] = hi;
                         }
                     }
                     _ => {}

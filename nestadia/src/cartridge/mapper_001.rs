@@ -67,7 +67,10 @@ impl Mapper for Mapper001 {
                             (self.prg_bank_selector_16_hi as usize) * 0x4000
                                 + (addr & 0x3FFF) as usize,
                         ),
-                        _ => unreachable!(),
+                        _ => {
+                            log::warn!("Attempted to read address w/o known mapping {:#06x}", addr);
+                            CartridgeReadTarget::PrgRom(0)
+                        }
                     }
                 } else {
                     // 32K PRG mode
@@ -153,7 +156,7 @@ impl Mapper for Mapper001 {
         }
     }
 
-    fn ppu_map_read(&self, addr: u16) -> usize {
+    fn ppu_map_read(&mut self, addr: u16) -> usize {
         if (self.control_register & CHR_MODE_MASK) != 0 {
             // 4K CHR mode
             match addr {
@@ -178,5 +181,25 @@ impl Mapper for Mapper001 {
 
     fn get_sram(&self) -> Option<&[u8]> {
         Some(&self.ram_data)
+    }
+
+    #[cfg(feature = "debugger")]
+    fn get_prg_bank(&self, addr: u16) -> Option<u8> {
+        match addr {
+            0x0000..=0x7FFF => None,
+            _ => {
+                if (self.control_register & PRG_MODE_MASK) > 1 {
+                    // 16K PRG mode
+                    match addr {
+                        0x8000..=0xBFFF => Some(self.prg_bank_selector_16_lo),
+                        0xC000..=0xFFFF => Some(self.prg_bank_selector_16_hi),
+                        _ => None,
+                    }
+                } else {
+                    // 32K PRG mode
+                    Some(self.prg_bank_selector_32)
+                }
+            }
+        }
     }
 }
