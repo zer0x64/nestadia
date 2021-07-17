@@ -1532,7 +1532,7 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.write_ram(addr, data),
             0x2000..=0x3FFF => self.write_ppu_register(addr, data),
-            0x4000..=0x4013 | 0x4015 => (), // TODO: APU
+            0x4000..=0x4013 | 0x4015 => self.write_apu_register(addr, data),
             0x4014 => {
                 // https://wiki.nesdev.com/w/index.php/PPU_registers#OAMDMA
                 let page_begin = u16::from(data) << 8;
@@ -1566,7 +1566,7 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.read_ram(addr),
             0x2000..=0x3FFF => self.read_ppu_register(addr),
-            0x4000..=0x4013 | 0x4015 => 0, // TODO: APU
+            0x4000..=0x4013 | 0x4015 => self.read_apu_register(addr),
             0x4014 => 0,                   // OAMDMA is write-only
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),
@@ -1579,6 +1579,7 @@ impl CpuBus<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Apu;
     use crate::Cartridge;
     use crate::Ppu;
     use crate::RAM_SIZE;
@@ -1592,6 +1593,7 @@ mod tests {
         controller1_snapshot: u8,
         controller2_snapshot: u8,
         ram: [u8; RAM_SIZE as usize],
+        apu: Apu,
         cartridge: Cartridge,
         ppu: Ppu,
         name_tables: [u8; 1024 * 4],
@@ -1628,6 +1630,7 @@ mod tests {
             cartridge: Cartridge::load(&rom, None).unwrap(),
 
             ram: [0u8; RAM_SIZE as usize],
+            apu: Apu::default(),
             ppu: Ppu::default(),
             name_tables: [0u8; 1024 * 4],
         };

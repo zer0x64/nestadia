@@ -5,6 +5,7 @@ extern crate alloc;
 #[macro_use]
 mod bus;
 
+mod apu;
 mod cartridge;
 mod cpu;
 mod ppu;
@@ -12,6 +13,7 @@ mod rgb_palette;
 
 pub use rgb_palette::RGB_PALETTE;
 
+pub use apu::Apu;
 pub use cartridge::RomParserError;
 pub use cpu::Cpu;
 pub use ppu::Ppu;
@@ -22,6 +24,9 @@ use crate::ppu::PpuFrame;
 pub const RAM_SIZE: u16 = 0x0800;
 
 pub struct Emulator {
+    // == APU == //
+    apu: Apu,
+
     // Cartridge is shared by CPU (PRG) and PPU (CHR)
     cartridge: Cartridge,
 
@@ -45,6 +50,8 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(rom: &[u8], save_data: Option<&[u8]>) -> Result<Self, RomParserError> {
         let mut emulator = Self {
+            apu: Default::default(),
+
             cartridge: Cartridge::load(rom, save_data)?,
 
             cpu: Default::default(),
@@ -74,6 +81,8 @@ impl Emulator {
         // CPU clock is 3 times slower
         if self.clock_count % 3 == 0 {
             self.clock_count = 0;
+
+            self.apu.clock();
 
             if self.cpu.cycles == 0 && self.ppu.take_vblank_nmi_set_state() {
                 // NMI interrupt
@@ -108,6 +117,7 @@ impl Emulator {
     pub fn reset(&mut self) {
         let mut cpu_bus = borrow_cpu_bus!(self);
         self.cpu.reset(&mut cpu_bus);
+        self.apu.reset();
         self.ppu.reset();
         self.clock_count = 0;
     }
