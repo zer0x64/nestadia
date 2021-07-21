@@ -16,10 +16,13 @@ use winit::{
     window::WindowBuilder,
 };
 
+use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
+
 use bitflags::bitflags;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
+use winit::platform::windows::WindowBuilderExtWindows;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -29,6 +32,24 @@ struct Opt {
     #[structopt(short = "p", long)]
     start_paused: bool,
 }
+
+struct Logger;
+
+impl log::Log for Logger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            println!("{} - {}", record.level(), record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: Logger = Logger;
 
 mod debugger;
 
@@ -66,7 +87,7 @@ impl TryFrom<&VirtualKeyCode> for ControllerState {
 }
 
 // Target for NTSC is ~60 FPS
-const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
+const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 240);
 
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
@@ -120,11 +141,14 @@ struct State {
 
     screen_texture: wgpu::Texture,
     screen_bind_group: wgpu::BindGroup,
+
+    // audio_stream_handle: OutputStreamHandle,
+    audio_sink: Sink,
 }
 
 impl State {
     /// Create a new state and initialize the rendering pipeline.
-    async fn new(window: &winit::window::Window, emulator: Emulator) -> Self {
+    async fn new(window: &winit::window::Window, audio_sink: Sink, emulator: Emulator) -> Self {
         let size = window.inner_size();
 
         // Used prefered graphic API
@@ -356,6 +380,9 @@ impl State {
 
             screen_texture,
             screen_bind_group,
+
+            // audio_stream_handle,
+            audio_sink
         }
     }
 
@@ -478,6 +505,13 @@ impl State {
                 );
             }
         }
+
+        let buffer = SamplesBuffer::new(
+            1,
+            44100,
+            self.emulator.take_audio_samples().collect::<Vec<f32>>()
+        );
+        self.audio_sink.append(buffer);
     }
 
     /// Render the screen
@@ -541,15 +575,10 @@ impl State {
 }
 
 fn main() {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(log::LevelFilter::Info)).unwrap();
+
     // Parse CLI options
     let opt = Opt::from_args();
-
-    // Create the window
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("Nestadia")
-        .build(&event_loop)
-        .unwrap();
 
     // Find ROM path
     let path = if let Some(p) = opt.rom {
@@ -561,6 +590,18 @@ fn main() {
             .unwrap()
             .expect("No rom passed!")
     };
+
+    // Create the audio device
+    let (_audio_stream, audio_stream_handle) = OutputStream::try_default().unwrap();
+    let audio_sink = Sink::try_new(&audio_stream_handle).unwrap();
+
+    // Create the window
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_title("Nestadia")
+        .with_drag_and_drop(false)
+        .build(&event_loop)
+        .unwrap();
 
     let mut save_path = path.clone();
     save_path.set_extension("sav");
@@ -581,20 +622,34 @@ fn main() {
     let emulator = Emulator::new(&rom, save_file).expect("Rom parsing failed");
 
     // Wait until WGPU is ready
-    let mut state = block_on(State::new(&window, emulator));
+    let mut state = block_on(State::new(&window, audio_sink, emulator));
     if opt.start_paused {
         state.pause();
     }
 
+    let mut timestamps = std::collections::vec_deque::VecDeque::with_capacity(10);
+    let mut timestamp_counter = 0u8;
+
     // Handle window events
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(_) => {
+            let start = std::time::Instant::now();
             state.update();
             match state.render() {
                 Ok(_) => {}
                 Err(wgpu::SwapChainError::Lost) => state.resize(state.size),
                 Err(wgpu::SwapChainError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                 Err(e) => eprintln!("{:?}", e),
+            }
+            let end = std::time::Instant::now();
+            if timestamps.len() == 10 {
+                timestamps.pop_front();
+            }
+            timestamps.push_back((end - start).as_micros());
+            timestamp_counter = (timestamp_counter + 1) % 10;
+            if timestamp_counter == 0 {
+                let frame_time = timestamps.iter().sum::<u128>() as f64 / timestamps.len() as f64 / 1000.0f64;
+                log::info!("Average time: {} fps: {}", frame_time, 1.0f64 / (frame_time / 1000.0f64));
             }
         }
 

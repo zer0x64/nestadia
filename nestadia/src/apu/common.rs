@@ -49,9 +49,9 @@ impl Enveloppe {
                     if self.register.enveloppe_loop() {
                         self.decay_cycle = 15;
                     }
+                } else {
+                    self.decay_cycle -= 1;
                 }
-
-                self.decay_cycle -= 1;
             }
         }
     }

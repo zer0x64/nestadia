@@ -12,6 +12,9 @@ members = [
 # Slightly better optimizations.
 opt-level = 1
 
+[profile.dev.package.nestadia-libretro]
+opt-level = 0
+
 [profile.release]
 codegen-units = 1
 

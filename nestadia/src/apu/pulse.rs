@@ -48,27 +48,27 @@ impl PulseChannel {
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
-        log::info!("PulseChannel write {:?}: {:?} ({:#010b})", addr, data, data);
+        // log::info!("PulseChannel write {:?}: {:?} ({:#010b})", addr, data, data);
         match addr & 0b11 {
             0 => {
                 self.enveloppe.set_register(data);
                 self.length_counter.set_halt((data & 0x20) != 0);
-                log::info!("Enveloppe: {:?}", self.enveloppe);
+                // log::info!("Enveloppe: {:?}", self.enveloppe);
             }
             1 => {
                 self.sweep.0 = data;
                 self.sweep_reload = true;
-                log::info!("Sweep: {:?}", self.sweep);
+                // log::info!("Sweep: {:?}", self.sweep);
             }
             2 => {
                 self.timer.set_timer_lo(data);
-                log::info!("Timer low: {:?}", self.timer);
+                // log::info!("Timer low: {:?}", self.timer);
             }
             3 => {
                 self.timer.set_timer_hi(data & 0b111);
                 self.length_counter.set_counter(data >> 3);
-                log::info!("Timer hi: {:?}", self.timer);
-                log::info!("LengthCounter: {:?}", self.length_counter);
+                // log::info!("Timer hi: {:?}", self.timer);
+                // log::info!("LengthCounter: {:?}", self.length_counter);
 
                 self.enveloppe.set_start_flag();
                 self.duty_cycle = 0;
@@ -143,7 +143,7 @@ impl PulseChannel {
         let change = self.timer.value() >> self.sweep.shift_count();
         if self.sweep.negate() {
             if self.one_complement {
-                self.timer.value().wrapping_sub(change - 1)
+                self.timer.value().wrapping_sub(change) + 1
             } else {
                 self.timer.value().wrapping_sub(change)
             }

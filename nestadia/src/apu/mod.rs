@@ -54,7 +54,7 @@ impl Apu {
         *self = Default::default();
     }
 
-    pub fn write(&mut self, bus: /*&mut PpuBus<'_>*/u8, addr: u16, data: u8) {
+    pub fn write(&mut self, _bus: /*&mut PpuBus<'_>*/u8, addr: u16, data: u8) {
         match addr {
             0x4000..=0x4003 => {
                 // pulse channel 1
@@ -75,7 +75,7 @@ impl Apu {
             }
             0x4015 => {
                 // channel enable and length counter status
-                self.pulse_channel_1.set_length_counter_enable((data | ChannelEnable::PULSE1_ENABLE.bits()) != 0)
+                self.pulse_channel_1.set_length_counter_enable((data & ChannelEnable::PULSE1_ENABLE.bits()) != 0)
             }
             0x4017 => {
                 // frame counter
@@ -92,7 +92,7 @@ impl Apu {
         }
     }
 
-    pub fn read(&mut self, bus: /*&mut PpuBus<'_>*/u8, addr: u16) -> u8 {
+    pub fn read(&mut self, _bus: /*&mut PpuBus<'_>*/u8, addr: u16) -> u8 {
         match addr {
             0x4000..=0x4013 | 0x4017 => {
                 log::warn!(
@@ -125,9 +125,10 @@ impl Apu {
 
     fn mix_samples(&mut self) {
         const SAMPLE_RATE: f32 = 44100.0;
-        const CPU_FREQUENCY: f32 = 1789733.0;
-        const CPU_CYCLES_PER_SAMPLE: u16 = ((CPU_FREQUENCY / SAMPLE_RATE) + 0.5) as u16;
-        const MAX_SAMPLES: usize = 1024;
+        const CPU_FREQUENCY: f32 = 1789773.0;
+        const CPU_CYCLES_PER_SAMPLE: u16 = (CPU_FREQUENCY / SAMPLE_RATE) as u16;
+        // const CPU_CYCLES_PER_SAMPLE: u16 = ((CPU_FREQUENCY / SAMPLE_RATE) + 0.5) as u16;
+        const MAX_SAMPLES: usize = 2048;
 
         if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
             // Linear approximation mixing
@@ -139,7 +140,7 @@ impl Apu {
             }
 
             self.samples.push(pulse_out + tnd_out);
-            log::info!("new sample: {:?}", pulse_out + tnd_out);
+            //log::info!("new sample: {:?}", pulse_out + tnd_out);
         }
     }
 

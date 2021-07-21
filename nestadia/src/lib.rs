@@ -126,6 +126,10 @@ impl Emulator {
         self.cartridge.get_save_data()
     }
 
+    pub fn take_audio_samples(&mut self) -> alloc::vec::Drain<f32> {
+        self.apu.take_samples()
+    }
+
     #[cfg(feature = "debugger")]
     #[allow(unused_variables)] // FIXME
     pub fn disassemble(

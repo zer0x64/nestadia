@@ -14,8 +14,6 @@ use nestadia::Emulator;
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
 
-const MOCK_AUDIO: [i16; 1470] = [0i16; 1470];
-
 bitflags! {
     #[derive(Default)]
     struct ControllerState: u8 {
@@ -140,7 +138,36 @@ impl Core for State {
         nestadia::frame_to_argb(&frame, &mut current_frame);
 
         handle.upload_video_frame(&current_frame);
-        handle.upload_audio_frame(&MOCK_AUDIO);
+
+        let mut audio_buffer = Vec::with_capacity(2048);
+        audio_buffer.extend(
+            emulator.take_audio_samples().flat_map(|sample| {
+                let sample = if sample >= 1.0 {
+                    32767
+                } else if sample <= -1.0 {
+                    -32768
+                } else {
+                    (sample * 32767.0) as i16
+                };
+
+                // Duplicate the value to transform mono audio to stereo
+                [sample, sample]
+            })
+        );
+
+        // NOTE: When rounding CPU_CYCLES_PER_SAMPLE (using +0.5) to 41, there is 1454 frames
+        // so 16 frames missing. Without rounding (so 40 cpu cycles to create a sample), it generates
+        // 1490 frames, so it has enough samples. The actual accurate value is 40.5, but cpu cycles
+        // are not floats.
+        println!("Audio buffer length: {}", audio_buffer.len());
+
+        if audio_buffer.len() < 1470 {
+            for _ in 0..(1470 - audio_buffer.len()) {
+                audio_buffer.push(*audio_buffer.last().unwrap());
+            }
+        }
+
+        handle.upload_audio_frame(&audio_buffer[..]);
 
         // Reading controller inputs
         macro_rules! update_controllers {
