@@ -123,11 +123,16 @@ impl Core for State {
     }
 
     fn on_run(&mut self, handle: &mut RuntimeHandle) {
+        let mask_reg;
+
         let emulator = match &mut self.emulator {
             None => {
                 return;
             }
-            Some(emulator) => emulator,
+            Some(emulator) => { 
+                mask_reg = emulator.get_ppu_mask_reg();
+                emulator
+            },
         };
 
         let frame = loop {
@@ -137,7 +142,7 @@ impl Core for State {
         };
 
         let mut current_frame = [0u8; NUM_PIXELS * 4];
-        nestadia::frame_to_argb(&frame, &mut current_frame);
+        Emulator::frame_to_argb(mask_reg, &frame, &mut current_frame);
 
         handle.upload_video_frame(&current_frame);
         handle.upload_audio_frame(&MOCK_AUDIO);

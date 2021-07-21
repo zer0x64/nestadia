@@ -15,6 +15,7 @@ pub use rgb_palette::RGB_PALETTE;
 pub use cartridge::RomParserError;
 pub use cpu::Cpu;
 pub use ppu::Ppu;
+pub use ppu::registers::MaskReg;
 
 use crate::cartridge::Cartridge;
 use crate::ppu::PpuFrame;
@@ -97,6 +98,10 @@ impl Emulator {
         self.ppu.ready_frame()
     }
 
+    pub fn get_ppu_mask_reg(&mut self) -> MaskReg {
+        self.ppu.mask_reg
+    }
+
     pub fn set_controller1(&mut self, state: u8) {
         self.controller1 = state;
     }
@@ -142,37 +147,96 @@ impl Emulator {
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
-}
 
-pub fn frame_to_rgb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
-    for i in 0..frame.len() {
-        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 3] = f[0];
-        output[i * 3 + 1] = f[1];
-        output[i * 3 + 2] = f[2];
+    pub fn frame_to_rgb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
+        let processed_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, processed_palette);
+        
+        for i in 0..frame.len() {
+            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            output[i * 3] = f[0]; // R
+            output[i * 3 + 1] = f[1]; // G
+            output[i * 3 + 2] = f[2]; // B
+        }
+    }
+    
+    pub fn frame_to_rgba(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+        let processed_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, processed_palette);
+
+        for i in 0..frame.len() {
+            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            output[i * 4] = f[0]; // R
+            output[i * 4 + 1] = f[1]; // G
+            output[i * 4 + 2] = f[2]; // B
+    
+            // Alpha is always 0xff because it's opaque
+            output[i * 4 + 3] = 0xff; // A
+        }
+    }
+    
+    pub fn frame_to_argb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+        let processed_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, processed_palette);
+        
+        for i in 0..frame.len() {
+            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            output[i * 4] = f[2]; // B
+            output[i * 4 + 1] = f[1]; // G
+            output[i * 4 + 2] = f[0]; // R
+    
+            // Alpha is always 0xff because it's opaque
+            output[i * 4 + 3] = 0xff; // A
+        }
     }
 }
 
-pub fn frame_to_rgba(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-    for i in 0..frame.len() {
-        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 4] = f[0]; // R
-        output[i * 4 + 1] = f[1]; // G
-        output[i * 4 + 2] = f[2]; // B
-
-        // Alpha is always 0xff because it's opaque
-        output[i * 4 + 3] = 0xff; // A
+pub fn apply_emphasis(mask_reg: MaskReg, new_palette: &mut [[u8; 3]; 64]) {
+    if !mask_reg.contains(MaskReg::EMPHASISE_RED) && !mask_reg.contains(MaskReg::EMPHASISE_GREEN) && !mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
+        return;
     }
-}
+    
+    if mask_reg.contains(MaskReg::EMPHASISE_RED) && mask_reg.contains(MaskReg::EMPHASISE_GREEN) && mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
+        for colors in new_palette {
+            colors[0] = (colors[0] / 2) as u8;
+            colors[1] = (colors[1] / 2) as u8;
+            colors[2] = (colors[2] / 2) as u8;
+        }
 
-pub fn frame_to_argb(frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-    for i in 0..frame.len() {
-        let f = RGB_PALETTE[(frame[i] & 0x3f) as usize];
-        output[i * 4] = f[2]; // B
-        output[i * 4 + 1] = f[1]; // G
-        output[i * 4 + 2] = f[0]; // R
+    } else {
+        // FIXME gotta check when its $0D because i should not process it...
+        // FIXME those values are very far from the real thing. gotta do some research.
+        for colors in new_palette {
 
-        // Alpha is always 0xff because it's opaque
-        output[i * 4 + 3] = 0xff; // A
+            colors[0] = if mask_reg.contains(MaskReg::EMPHASISE_RED) {
+                if colors[0] > 0b01111111 {
+                    0xFF
+                } else {
+                    colors[0] * 2
+                }
+            } else {
+                colors[0] / 2
+            };
+
+            colors[1] = if mask_reg.contains(MaskReg::EMPHASISE_GREEN) {
+                if colors[1] > 0b01111111 {
+                    0xFF
+                } else {
+                    colors[1] * 2
+                }
+            } else {
+                colors[1] / 2
+            };
+
+            colors[2] = if mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
+                if colors[2] > 0b01111111 {
+                    0xFF
+                } else {
+                    colors[2] * 2
+                }
+            } else {
+                colors[2] / 2
+            };
+        }
     }
 }
