@@ -149,11 +149,11 @@ impl Emulator {
     }
 
     pub fn frame_to_rgb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
-        let processed_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, processed_palette);
+        let empasized_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, empasized_palette);
         
         for i in 0..frame.len() {
-            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            let f = empasized_palette[(frame[i] & 0x3f) as usize];
             output[i * 3] = f[0]; // R
             output[i * 3 + 1] = f[1]; // G
             output[i * 3 + 2] = f[2]; // B
@@ -161,11 +161,11 @@ impl Emulator {
     }
     
     pub fn frame_to_rgba(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-        let processed_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, processed_palette);
+        let empasized_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, empasized_palette);
 
         for i in 0..frame.len() {
-            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            let f = empasized_palette[(frame[i] & 0x3f) as usize];
             output[i * 4] = f[0]; // R
             output[i * 4 + 1] = f[1]; // G
             output[i * 4 + 2] = f[2]; // B
@@ -176,11 +176,11 @@ impl Emulator {
     }
     
     pub fn frame_to_argb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-        let processed_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, processed_palette);
+        let empasized_palette = &mut RGB_PALETTE.clone();
+        apply_emphasis(mask_reg, empasized_palette);
         
         for i in 0..frame.len() {
-            let f = processed_palette[(frame[i] & 0x3f) as usize];
+            let f = empasized_palette[(frame[i] & 0x3f) as usize];
             output[i * 4] = f[2]; // B
             output[i * 4 + 1] = f[1]; // G
             output[i * 4 + 2] = f[0]; // R
@@ -197,46 +197,60 @@ pub fn apply_emphasis(mask_reg: MaskReg, new_palette: &mut [[u8; 3]; 64]) {
     }
     
     if mask_reg.contains(MaskReg::EMPHASISE_RED) && mask_reg.contains(MaskReg::EMPHASISE_GREEN) && mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
-        for colors in new_palette {
-            colors[0] = (colors[0] / 2) as u8;
-            colors[1] = (colors[1] / 2) as u8;
-            colors[2] = (colors[2] / 2) as u8;
+        for i in 0x00..0x3F {
+            // 0x0F should not have any emphasis applied to it.
+            if i == 0x0F {
+                continue;
+            }
+
+            let colors = &mut new_palette[i];
+
+            colors[0] = deemphasize_color(colors[0]);
+            colors[1] = deemphasize_color(colors[1]);
+            colors[2] = deemphasize_color(colors[2]);
         }
 
     } else {
-        // FIXME gotta check when its $0D because i should not process it...
-        // FIXME those values are very far from the real thing. gotta do some research.
-        for colors in new_palette {
+        // 0x0F should not have any emphasis applied to it.
+        for i in 0x00..0x3F {
+            if i == 0x0F {
+                continue;
+            }
+
+            let colors = &mut new_palette[i];
 
             colors[0] = if mask_reg.contains(MaskReg::EMPHASISE_RED) {
-                if colors[0] > 0b01111111 {
-                    0xFF
-                } else {
-                    colors[0] * 2
-                }
+                emphasize_color(colors[0])
             } else {
-                colors[0] / 2
+                deemphasize_color(colors[0])
             };
 
             colors[1] = if mask_reg.contains(MaskReg::EMPHASISE_GREEN) {
-                if colors[1] > 0b01111111 {
-                    0xFF
-                } else {
-                    colors[1] * 2
-                }
+                emphasize_color(colors[1])
             } else {
-                colors[1] / 2
+                deemphasize_color(colors[1])
             };
 
             colors[2] = if mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
-                if colors[2] > 0b01111111 {
-                    0xFF
-                } else {
-                    colors[2] * 2
-                }
+                emphasize_color(colors[2])
             } else {
-                colors[2] / 2
+                deemphasize_color(colors[2])
             };
         }
     }
+}
+
+pub fn deemphasize_color(color: u8) -> u8 {
+    let emphasized_color = color as f32 * 0.85;
+    emphasized_color as u8
+}
+
+pub fn emphasize_color(color: u8) -> u8 {
+    let mut emphasized_color = color as f32 * 1.1;
+
+    if emphasized_color > 255.0 {
+        emphasized_color = 255.0;
+    }
+
+    emphasized_color as u8
 }
