@@ -129,10 +129,10 @@ impl Core for State {
             None => {
                 return;
             }
-            Some(emulator) => { 
+            Some(emulator) => {
                 mask_reg = emulator.get_ppu_mask_reg();
                 emulator
-            },
+            }
         };
 
         let frame = loop {

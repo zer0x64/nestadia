@@ -14,8 +14,8 @@ pub use rgb_palette::RGB_PALETTE;
 
 pub use cartridge::RomParserError;
 pub use cpu::Cpu;
-pub use ppu::Ppu;
 pub use ppu::registers::MaskReg;
+pub use ppu::Ppu;
 
 use crate::cartridge::Cartridge;
 use crate::ppu::PpuFrame;
@@ -151,7 +151,7 @@ impl Emulator {
     pub fn frame_to_rgb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
         let empasized_palette = &mut RGB_PALETTE.clone();
         apply_emphasis(mask_reg, empasized_palette);
-        
+
         for i in 0..frame.len() {
             let f = empasized_palette[(frame[i] & 0x3f) as usize];
             output[i * 3] = f[0]; // R
@@ -159,7 +159,7 @@ impl Emulator {
             output[i * 3 + 2] = f[2]; // B
         }
     }
-    
+
     pub fn frame_to_rgba(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
         let empasized_palette = &mut RGB_PALETTE.clone();
         apply_emphasis(mask_reg, empasized_palette);
@@ -169,22 +169,22 @@ impl Emulator {
             output[i * 4] = f[0]; // R
             output[i * 4 + 1] = f[1]; // G
             output[i * 4 + 2] = f[2]; // B
-    
+
             // Alpha is always 0xff because it's opaque
             output[i * 4 + 3] = 0xff; // A
         }
     }
-    
+
     pub fn frame_to_argb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
         let empasized_palette = &mut RGB_PALETTE.clone();
         apply_emphasis(mask_reg, empasized_palette);
-        
+
         for i in 0..frame.len() {
             let f = empasized_palette[(frame[i] & 0x3f) as usize];
             output[i * 4] = f[2]; // B
             output[i * 4 + 1] = f[1]; // G
             output[i * 4 + 2] = f[0]; // R
-    
+
             // Alpha is always 0xff because it's opaque
             output[i * 4 + 3] = 0xff; // A
         }
@@ -192,32 +192,33 @@ impl Emulator {
 }
 
 pub fn apply_emphasis(mask_reg: MaskReg, new_palette: &mut [[u8; 3]; 64]) {
-    if !mask_reg.contains(MaskReg::EMPHASISE_RED) && !mask_reg.contains(MaskReg::EMPHASISE_GREEN) && !mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
+    if !mask_reg.contains(MaskReg::EMPHASISE_RED)
+        && !mask_reg.contains(MaskReg::EMPHASISE_GREEN)
+        && !mask_reg.contains(MaskReg::EMPHASISE_BLUE)
+    {
         return;
     }
-    
-    if mask_reg.contains(MaskReg::EMPHASISE_RED) && mask_reg.contains(MaskReg::EMPHASISE_GREEN) && mask_reg.contains(MaskReg::EMPHASISE_BLUE) {
-        for i in 0x00..0x3F {
+
+    if mask_reg.contains(MaskReg::EMPHASISE_RED)
+        && mask_reg.contains(MaskReg::EMPHASISE_GREEN)
+        && mask_reg.contains(MaskReg::EMPHASISE_BLUE)
+    {
+        for (i, colors) in new_palette.iter_mut().enumerate().take(0x3F) {
             // 0x0F should not have any emphasis applied to it.
             if i == 0x0F {
                 continue;
             }
 
-            let colors = &mut new_palette[i];
-
             colors[0] = deemphasize_color(colors[0]);
             colors[1] = deemphasize_color(colors[1]);
             colors[2] = deemphasize_color(colors[2]);
         }
-
     } else {
-        // 0x0F should not have any emphasis applied to it.
-        for i in 0x00..0x3F {
+        for (i, colors) in new_palette.iter_mut().enumerate().take(0x3F) {
+            // 0x0F should not have any emphasis applied to it.
             if i == 0x0F {
                 continue;
             }
-
-            let colors = &mut new_palette[i];
 
             colors[0] = if mask_reg.contains(MaskReg::EMPHASISE_RED) {
                 emphasize_color(colors[0])
@@ -241,11 +242,13 @@ pub fn apply_emphasis(mask_reg: MaskReg, new_palette: &mut [[u8; 3]; 64]) {
 }
 
 pub fn deemphasize_color(color: u8) -> u8 {
+    // The value (0.85) is hard coded but this isn't very ideal or authentic.
     let emphasized_color = color as f32 * 0.85;
     emphasized_color as u8
 }
 
 pub fn emphasize_color(color: u8) -> u8 {
+    // The value (1.1) is hard coded but this isn't very ideal or authentic.
     let mut emphasized_color = color as f32 * 1.1;
 
     if emphasized_color > 255.0 {
