@@ -6,6 +6,7 @@ mod mapper_003;
 mod mapper_004;
 mod mapper_007;
 mod mapper_066;
+mod mapper_119;
 
 use alloc::boxed::Box;
 use alloc::vec;
@@ -20,6 +21,7 @@ use self::mapper_003::Mapper003;
 use self::mapper_004::Mapper004;
 use self::mapper_007::Mapper007;
 use self::mapper_066::Mapper066;
+use self::mapper_119::Mapper119;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Mirroring {
@@ -97,6 +99,7 @@ impl Cartridge {
             4 => Box::new(Mapper004::new(header.prg_size, mirroring)),
             7 => Box::new(Mapper007::new()),
             66 => Box::new(Mapper066::new(mirroring)),
+            119 => Box::new(Mapper119::new(header.prg_size, mirroring)),
             _ => return Err(RomParserError::MapperNotImplemented),
         };
 
