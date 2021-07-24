@@ -34,7 +34,7 @@ pub struct PulseChannel {
 
     one_complement: bool,
 
-    duty_cycle: u8,
+    duty_step: u8,
     sweep_counter: u8,
     sweep_reload: bool,
 }
@@ -71,7 +71,8 @@ impl PulseChannel {
                 // log::info!("LengthCounter: {:?}", self.length_counter);
 
                 self.enveloppe.set_start_flag();
-                self.duty_cycle = 0;
+                self.duty_step = 0;
+                // log::info!("pulse reset");
             }
             _ => {}
         }
@@ -79,13 +80,13 @@ impl PulseChannel {
 
     pub fn clock(&mut self, sequence_mode: SequenceMode, cycle_count: u16) {
         // APU clock
-        if (cycle_count % 2) == 0 {
+        if (cycle_count % 2) == 1 {
             self.timer.clock();
             if self.timer.done() {
-                if self.duty_cycle != 7 {
-                    self.duty_cycle += 1;
+                if self.duty_step != 7 {
+                    self.duty_step += 1;
                 } else {
-                    self.duty_cycle = 0;
+                    self.duty_step = 0;
                 }
             }
         }
@@ -96,26 +97,26 @@ impl PulseChannel {
         }
 
         if sequence_mode.is_half_frame(cycle_count) {
-            let target_period = self.target_period();
-
-            if self.sweep_counter != 0 {
-                self.sweep_counter -= 1;
-            }
+            self.length_counter.clock();
 
             if self.sweep_counter == 0
                 && self.sweep.enable()
                 && self.sweep.shift_count() > 0
-                && target_period <= 0x07FF
+                && self.timer.value() >= 8
             {
-                self.timer.set_timer(target_period);
+                let target_period = self.target_period();
+                if target_period <= 0x07FF {
+                    log::info!("Sweep new timer: {}", target_period);
+                    self.timer.set_timer(target_period);
+                }
             }
 
             if self.sweep_counter == 0 || self.sweep_reload {
                 self.sweep_counter = self.sweep.period();
                 self.sweep_reload = false;
+            } else {
+                self.sweep_counter -= 1;
             }
-
-            self.length_counter.clock();
         }
     }
 
@@ -129,21 +130,31 @@ impl PulseChannel {
 
     pub fn sample(&self) -> u8 {
         // Check if muted
-        if self.timer.value() < 8
-            || self.target_period() > 0x07FF
-            || self.length_counter.counter() == 0
-        {
+        if self.is_muted() {
+            // log::info!("pulse muted, why: timer: {}, target_period: {}, length_counter: {}",
+            //     self.timer.value(), self.target_period(), self.length_counter.counter());
             0
         } else {
-            self.enveloppe.volume() * DUTY_SEQUENCES[self.enveloppe.duty() as usize][self.duty_cycle as usize]
+            // log::info!("pulse volume: {}, seq: {} (duty: {}, index: {})",
+            //     self.enveloppe.volume(),
+            //     DUTY_SEQUENCES[self.enveloppe.duty() as usize][self.duty_step as usize],
+            //     self.enveloppe.duty(),
+            //     self.duty_step);
+            self.enveloppe.volume() * DUTY_SEQUENCES[self.enveloppe.duty() as usize][self.duty_step as usize]
         }
+    }
+
+    fn is_muted(&self) -> bool {
+        self.timer.value() < 8
+            || self.target_period() > 0x07FF
+            || self.length_counter.counter() == 0
     }
 
     fn target_period(&self) -> u16 {
         let change = self.timer.value() >> self.sweep.shift_count();
         if self.sweep.negate() {
             if self.one_complement {
-                self.timer.value().wrapping_sub(change) + 1
+                self.timer.value().wrapping_sub(change).wrapping_sub(1)
             } else {
                 self.timer.value().wrapping_sub(change)
             }

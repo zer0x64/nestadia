@@ -126,7 +126,7 @@ impl Emulator {
         self.cartridge.get_save_data()
     }
 
-    pub fn take_audio_samples(&mut self) -> alloc::vec::Drain<f32> {
+    pub fn take_audio_samples(&mut self) -> alloc::vec::Drain<i16> {
         self.apu.take_samples()
     }
 

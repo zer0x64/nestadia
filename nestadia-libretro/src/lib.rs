@@ -142,13 +142,15 @@ impl Core for State {
         let mut audio_buffer = Vec::with_capacity(2048);
         audio_buffer.extend(
             emulator.take_audio_samples().flat_map(|sample| {
-                let sample = if sample >= 1.0 {
-                    32767
-                } else if sample <= -1.0 {
-                    -32768
-                } else {
-                    (sample * 32767.0) as i16
-                };
+                // let sample = if sample >= 1.0 {
+                //     println!("Max sample hit");
+                //     i16::MAX
+                // } else if sample <= -1.0 {
+                //     println!("Min sample hit");
+                //     i16::MIN
+                // } else {
+                //     (sample * i16::MAX as f32) as i16
+                // };
 
                 // Duplicate the value to transform mono audio to stereo
                 [sample, sample]
@@ -159,7 +161,7 @@ impl Core for State {
         // so 16 frames missing. Without rounding (so 40 cpu cycles to create a sample), it generates
         // 1490 frames, so it has enough samples. The actual accurate value is 40.5, but cpu cycles
         // are not floats.
-        println!("Audio buffer length: {}", audio_buffer.len());
+        // println!("Audio buffer length: {}", audio_buffer.len());
 
         if audio_buffer.len() < 1470 {
             for _ in 0..(1470 - audio_buffer.len()) {

@@ -509,7 +509,7 @@ impl State {
         let buffer = SamplesBuffer::new(
             1,
             44100,
-            self.emulator.take_audio_samples().collect::<Vec<f32>>()
+            self.emulator.take_audio_samples().collect::<Vec<_>>()
         );
         self.audio_sink.append(buffer);
     }

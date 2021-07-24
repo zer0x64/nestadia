@@ -1,11 +1,36 @@
 use bitflags::bitflags;
 use alloc::vec::{Drain, Vec};
-use crate::apu::pulse::PulseChannel;
 
 mod common;
 mod noise;
 mod pulse;
 mod triangle;
+
+use self::common::SequenceMode;
+use self::pulse::PulseChannel;
+use self::triangle::TriangleChannel;
+
+const PULSE_MIXING_TABLE: [f32; 31] = {
+    let mut table = [0f32; 31];
+    let mut i = 1;
+    while i < 31 {
+        table[i as usize] = 95.52 / (8128.0 / i as f32 + 100.0);
+        i += 1;
+    }
+    table
+};
+
+const TND_MIXING_TABLE: [f32; 203] = {
+    let mut table = [0f32; 203];
+    let mut i = 1;
+    while i < 203 {
+        table[i as usize] = 163.67 / (24329.0 / i as f32 + 100.0);
+        i += 1;
+    }
+    table
+};
+
+const MAX_SAMPLES: usize = 1024;
 
 bitflags! {
     struct ChannelEnable: u8 {
@@ -19,16 +44,17 @@ bitflags! {
 
 pub struct Apu {
     // Channels
-    pulse_channel_1: pulse::PulseChannel,
-    //pulse_channel_2: pulse::PulseChannel,
+    pulse_channel_1: PulseChannel,
+    pulse_channel_2: PulseChannel,
+    triangle_channel: TriangleChannel,
 
     // Frame counter
     disable_interrupts: bool,
-    sequence_mode: common::SequenceMode,
+    sequence_mode: SequenceMode,
     cycle_count: u16,
 
     // Sample
-    samples: Vec<f32>,
+    samples: Vec<i16>,
 }
 
 impl Default for Apu {
@@ -41,12 +67,14 @@ impl Apu {
     pub fn new() -> Self {
         Self {
             pulse_channel_1: PulseChannel::new(true),
+            pulse_channel_2: PulseChannel::new(false),
+            triangle_channel: Default::default(),
 
             disable_interrupts: false,
             sequence_mode: Default::default(),
             cycle_count: 0,
 
-            samples: Vec::new(),
+            samples: Vec::with_capacity(MAX_SAMPLES),
         }
     }
 
@@ -62,10 +90,11 @@ impl Apu {
             }
             0x4004..=0x4007 => {
                 // pulse channel 2
-                //self.pulse_channel_2.write(addr & 0b11, data);
+                self.pulse_channel_2.write(addr & 0b11, data);
             }
             0x4008..=0x400B => {
                 // triangle channel
+                self.triangle_channel.write(addr & 0b11, data);
             }
             0x400C..=0x400F => {
                 // noise channel
@@ -75,16 +104,18 @@ impl Apu {
             }
             0x4015 => {
                 // channel enable and length counter status
-                self.pulse_channel_1.set_length_counter_enable((data & ChannelEnable::PULSE1_ENABLE.bits()) != 0)
+                self.pulse_channel_1.set_length_counter_enable((data & ChannelEnable::PULSE1_ENABLE.bits()) != 0);
+                self.pulse_channel_2.set_length_counter_enable((data & ChannelEnable::PULSE2_ENABLE.bits()) != 0);
+                self.triangle_channel.set_length_counter_enable((data & ChannelEnable::TRIANGLE_ENABLE.bits()) != 0);
             }
             0x4017 => {
                 // frame counter
                 self.disable_interrupts = (data & 0x40) != 0;
                 self.sequence_mode = if (data & 0x80) != 0 {
-                    common::SequenceMode::Step5
+                    SequenceMode::Step5
                 } else {
-                    common::SequenceMode::Step4
-                }
+                    SequenceMode::Step4
+                };
             }
             _ => {
                 unreachable!("bad apu addr {:#X}", addr);
@@ -106,6 +137,8 @@ impl Apu {
                 // channel enable and length counter status
                 let mut enable = ChannelEnable::empty();
                 enable.set(ChannelEnable::PULSE1_ENABLE, self.pulse_channel_1.length_counter_enable());
+                enable.set(ChannelEnable::PULSE2_ENABLE, self.pulse_channel_2.length_counter_enable());
+                enable.set(ChannelEnable::TRIANGLE_ENABLE, self.triangle_channel.length_counter_enable());
 
                 enable.bits()
             }
@@ -117,7 +150,8 @@ impl Apu {
 
     pub fn clock(&mut self) {
         self.pulse_channel_1.clock(self.sequence_mode, self.cycle_count);
-        //self.pulse_channel_2.clock(self.sequence_mode, self.cycle_count);
+        self.pulse_channel_2.clock(self.sequence_mode, self.cycle_count);
+        self.triangle_channel.clock(self.sequence_mode, self.cycle_count);
 
         self.mix_samples();
         self.cycle_count = (self.cycle_count + 1) % self.sequence_mode.get_max();
@@ -128,23 +162,30 @@ impl Apu {
         const CPU_FREQUENCY: f32 = 1789773.0;
         const CPU_CYCLES_PER_SAMPLE: u16 = (CPU_FREQUENCY / SAMPLE_RATE) as u16;
         // const CPU_CYCLES_PER_SAMPLE: u16 = ((CPU_FREQUENCY / SAMPLE_RATE) + 0.5) as u16;
-        const MAX_SAMPLES: usize = 2048;
 
         if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
-            // Linear approximation mixing
-            let pulse_out = 0.00752 * (self.pulse_channel_1.sample() + 0) as f32;
-            let tnd_out = 0.00851 * 0.0 + 0.00494 * 0.0 + 0.00335 * 0.0;
+            let pulse1 = self.pulse_channel_1.sample() * 1;
+            let pulse2 = self.pulse_channel_2.sample() * 1;
+            let triangle = self.triangle_channel.sample() * 1;
+            let noise = 0;
+            let dmc = 0;
 
-            if self.samples.len() == MAX_SAMPLES {
-                self.samples.pop();
-            }
+            // Lookup table mixing
+            let pulse_out = PULSE_MIXING_TABLE[(pulse1 + pulse2) as usize];
+            let tnd_out = TND_MIXING_TABLE[(3 * triangle + 2 * noise + dmc) as usize];
 
-            self.samples.push(pulse_out + tnd_out);
+            // log::info!("Lookup table output: {}", pulse_out + tnd_out);
+
+            // Apply filtering
+            let output = (pulse_out + tnd_out) * i16::MAX as f32;
+
+
+            self.samples.push(output as i16);
             //log::info!("new sample: {:?}", pulse_out + tnd_out);
         }
     }
 
-    pub fn take_samples(&mut self) -> Drain<f32> {
+    pub fn take_samples(&mut self) -> Drain<i16> {
         self.samples.drain(..)
     }
 }

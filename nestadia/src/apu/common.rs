@@ -45,12 +45,12 @@ impl Enveloppe {
             } else {
                 self.divider = self.register.volume();
 
-                if self.decay_cycle == 0 {
+                if self.decay_cycle != 0 {
+                    self.decay_cycle -= 1;
+                } else {
                     if self.register.enveloppe_loop() {
                         self.decay_cycle = 15;
                     }
-                } else {
-                    self.decay_cycle -= 1;
                 }
             }
         }
