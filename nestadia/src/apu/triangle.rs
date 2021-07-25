@@ -104,18 +104,14 @@ impl TriangleChannel {
         self.length_counter.set_enable(enable);
     }
 
+    #[inline]
     pub fn sample(&self) -> u8 {
-        if self.is_muted() {
-            0
-        } else if self.timer.value() < 2 {
-            7
-        } else {
-            SEQUENCE[self.sequence_index as usize]
-        }
+        SEQUENCE[self.sequence_index as usize]
     }
 
-    fn is_muted(&self) -> bool {
-        self.linear_counter.counter() == 0
-            || self.length_counter.counter() == 0
-    }
+    // #[inline]
+    // fn is_muted(&self) -> bool {
+    //     self.linear_counter.counter() == 0
+    //         || self.length_counter.counter() == 0
+    // }
 }

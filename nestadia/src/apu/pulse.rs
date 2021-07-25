@@ -128,6 +128,7 @@ impl PulseChannel {
         self.length_counter.set_enable(enable);
     }
 
+    #[inline]
     pub fn sample(&self) -> u8 {
         // Check if muted
         if self.is_muted() {
@@ -144,6 +145,7 @@ impl PulseChannel {
         }
     }
 
+    #[inline]
     fn is_muted(&self) -> bool {
         self.timer.value() < 8
             || self.target_period() > 0x07FF
