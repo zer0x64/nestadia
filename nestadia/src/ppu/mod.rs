@@ -575,22 +575,20 @@ impl Ppu {
                         let palette_idx = attributes & 0b11;
 
                         let lo = self.sprites_pipeline[sprite_idx] & 0b1;
-                        self.sprites_pipeline[sprite_idx] >>= 1;
-
                         let hi = self.sprites_pipeline[8 | sprite_idx] & 0b1;
-                        self.sprites_pipeline[8 | sprite_idx] >>= 1;
 
                         let sprite_pat = (hi << 1) | lo;
 
-                        if sprite_pat == 0 {
-                            continue;
+                        if sprite_pat != 0 {
+                            let color = self.palette_table
+                                [0x10 | ((palette_idx as usize) << 2) | (sprite_pat as usize)];
+
+                            pixel = Some((color, behind_background, sprite_idx == 0));
                         }
-
-                        let color = self.palette_table
-                            [0x10 | ((palette_idx as usize) << 2) | (sprite_pat as usize)];
-
-                        pixel = Some((color, behind_background, sprite_idx == 0));
                     }
+
+                    self.sprites_pipeline[sprite_idx] >>= 1;
+                    self.sprites_pipeline[8 | sprite_idx] >>= 1;
                 }
                 _ => {}
             };
