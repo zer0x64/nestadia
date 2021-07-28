@@ -28,8 +28,10 @@ impl Mapper for Mapper002 {
         }
     }
 
-    fn cpu_map_write(&mut self, _addr: u16, data: u8) {
-        self.prg_bank_selector = data;
+    fn cpu_map_write(&mut self, addr: u16, data: u8) {
+        if addr >= 0x8000 {
+            self.prg_bank_selector = data;
+        }
     }
 
     fn ppu_map_read(&mut self, addr: u16) -> usize {
