@@ -53,14 +53,16 @@ impl NoiseChannel {
         if (cycle_count % 2) == 1 {
             self.timer.clock();
             if self.timer.done() {
-                let feedback = if self.mode {
-                    (self.shift_register & 0b1) ^ (self.shift_register & 0b1000000)
+                let offset = if self.mode {
+                    6
                 } else {
-                    (self.shift_register & 0b1) ^ (self.shift_register & 0b10)
+                    1
                 };
 
-                self.shift_register >>= 1;
-                self.shift_register |= feedback << 14;
+                let bit1 = self.shift_register & 0b1;
+                let bit2 = (self.shift_register >> offset) & 0b1;
+
+                self.shift_register = (self.shift_register >> 1) | ((bit1 ^ bit2) << 14);
             }
         }
 
