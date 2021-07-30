@@ -82,7 +82,7 @@ impl TriangleChannel {
     pub fn clock(&mut self, sequence_mode: SequenceMode, cycle_count: u16) {
         // The triangle channel runs every CPU clock
         self.timer.clock();
-        if self.timer.done() && self.length_counter.counter() != 0 && self.linear_counter.counter() != 0 {
+        if self.timer.done() && !self.is_muted() {
             self.sequence_index = (self.sequence_index + 1) % 32;
         }
 
@@ -104,14 +104,13 @@ impl TriangleChannel {
         self.length_counter.set_enable(enable);
     }
 
-    #[inline]
     pub fn sample(&self) -> u8 {
         SEQUENCE[self.sequence_index as usize]
     }
 
-    // #[inline]
-    // fn is_muted(&self) -> bool {
-    //     self.linear_counter.counter() == 0
-    //         || self.length_counter.counter() == 0
-    // }
+    fn is_muted(&self) -> bool {
+        self.timer.value() < 2
+            || self.linear_counter.counter() == 0
+            || self.length_counter.counter() == 0
+    }
 }
