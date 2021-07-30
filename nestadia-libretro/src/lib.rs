@@ -142,7 +142,7 @@ impl Core for State {
         };
 
         let mut current_frame = [0u8; NUM_PIXELS * 4];
-        Emulator::frame_to_argb(mask_reg, &frame, &mut current_frame);
+        nestadia::frame_to_argb(mask_reg, &frame, &mut current_frame);
 
         handle.upload_video_frame(&current_frame);
         handle.upload_audio_frame(&MOCK_AUDIO);

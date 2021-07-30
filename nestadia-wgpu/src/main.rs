@@ -416,7 +416,7 @@ impl State {
 
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
-                Emulator::frame_to_rgba(mask_reg, &frame, &mut current_frame);
+                nestadia::frame_to_rgba(mask_reg, &frame, &mut current_frame);
 
                 // Update texture
                 let texture_size = wgpu::Extent3d {
@@ -455,7 +455,7 @@ impl State {
 
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
-                Emulator::frame_to_rgba(mask_reg, &frame, &mut current_frame);
+                nestadia::frame_to_rgba(mask_reg, &frame, &mut current_frame);
 
                 // Update texture
                 let texture_size = wgpu::Extent3d {

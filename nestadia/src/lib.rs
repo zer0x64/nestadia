@@ -147,47 +147,47 @@ impl Emulator {
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
+}
 
-    pub fn frame_to_rgb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
-        let empasized_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, empasized_palette);
+pub fn frame_to_rgb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 3]) {
+    let empasized_palette = &mut RGB_PALETTE.clone();
+    apply_emphasis(mask_reg, empasized_palette);
 
-        for i in 0..frame.len() {
-            let f = empasized_palette[(frame[i] & 0x3f) as usize];
-            output[i * 3] = f[0]; // R
-            output[i * 3 + 1] = f[1]; // G
-            output[i * 3 + 2] = f[2]; // B
-        }
+    for i in 0..frame.len() {
+        let f = empasized_palette[(frame[i] & 0x3f) as usize];
+        output[i * 3] = f[0]; // R
+        output[i * 3 + 1] = f[1]; // G
+        output[i * 3 + 2] = f[2]; // B
     }
+}
 
-    pub fn frame_to_rgba(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-        let empasized_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, empasized_palette);
+pub fn frame_to_rgba(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+    let empasized_palette = &mut RGB_PALETTE.clone();
+    apply_emphasis(mask_reg, empasized_palette);
 
-        for i in 0..frame.len() {
-            let f = empasized_palette[(frame[i] & 0x3f) as usize];
-            output[i * 4] = f[0]; // R
-            output[i * 4 + 1] = f[1]; // G
-            output[i * 4 + 2] = f[2]; // B
+    for i in 0..frame.len() {
+        let f = empasized_palette[(frame[i] & 0x3f) as usize];
+        output[i * 4] = f[0]; // R
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[2]; // B
 
-            // Alpha is always 0xff because it's opaque
-            output[i * 4 + 3] = 0xff; // A
-        }
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff; // A
     }
+}
 
-    pub fn frame_to_argb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
-        let empasized_palette = &mut RGB_PALETTE.clone();
-        apply_emphasis(mask_reg, empasized_palette);
+pub fn frame_to_argb(mask_reg: MaskReg, frame: &PpuFrame, output: &mut [u8; 256 * 240 * 4]) {
+    let empasized_palette = &mut RGB_PALETTE.clone();
+    apply_emphasis(mask_reg, empasized_palette);
 
-        for i in 0..frame.len() {
-            let f = empasized_palette[(frame[i] & 0x3f) as usize];
-            output[i * 4] = f[2]; // B
-            output[i * 4 + 1] = f[1]; // G
-            output[i * 4 + 2] = f[0]; // R
+    for i in 0..frame.len() {
+        let f = empasized_palette[(frame[i] & 0x3f) as usize];
+        output[i * 4] = f[2]; // B
+        output[i * 4 + 1] = f[1]; // G
+        output[i * 4 + 2] = f[0]; // R
 
-            // Alpha is always 0xff because it's opaque
-            output[i * 4 + 3] = 0xff; // A
-        }
+        // Alpha is always 0xff because it's opaque
+        output[i * 4 + 3] = 0xff; // A
     }
 }
 
