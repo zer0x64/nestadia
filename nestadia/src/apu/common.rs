@@ -1,31 +1,25 @@
 use bitfield::bitfield;
 
 bitfield! {
-    #[derive(Clone, Copy)]
-    struct EnveloppeRegister(u8);
+    #[derive(Clone, Copy, Default)]
+    struct EnvelopeRegister(u8);
     impl Debug;
 
     pub volume, _: 3, 0;
     pub const_volume, _: 4;
-    pub enveloppe_loop, _: 5;
+    pub envelope_loop, _: 5;
     pub duty, _: 7, 6;
 }
 
-impl Default for EnveloppeRegister {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Enveloppe {
-    register: EnveloppeRegister,
+pub struct Envelope {
+    register: EnvelopeRegister,
     start_flag: bool,
     decay_cycle: u8,
     divider: u8,
 }
 
-impl Enveloppe {
+impl Envelope {
     pub fn set_register(&mut self, data: u8) {
         self.register.0 = data;
     }
@@ -48,7 +42,7 @@ impl Enveloppe {
                 if self.decay_cycle != 0 {
                     self.decay_cycle -= 1;
                 } else {
-                    if self.register.enveloppe_loop() {
+                    if self.register.envelope_loop() {
                         self.decay_cycle = 15;
                     }
                 }
@@ -131,8 +125,12 @@ impl Timer {
         self.counter = self.timer_reload;
     }
 
-    pub fn value(&self) -> u16 {
+    pub fn counter(&self) -> u16 {
         self.counter
+    }
+
+    pub fn period(&self) -> u16 {
+        self.timer_reload
     }
 
     pub fn clock(&mut self) {

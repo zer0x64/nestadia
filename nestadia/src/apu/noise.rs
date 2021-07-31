@@ -5,7 +5,7 @@ const PERIOD_TABLE: [u16; 16] = [
 ];
 
 pub struct NoiseChannel {
-    enveloppe: Enveloppe,
+    envelope: Envelope,
     timer: Timer,
     length_counter: LengthCounter,
 
@@ -16,7 +16,7 @@ pub struct NoiseChannel {
 impl Default for NoiseChannel {
     fn default() -> Self {
         Self {
-            enveloppe: Default::default(),
+            envelope: Default::default(),
             timer: Default::default(),
             length_counter: Default::default(),
 
@@ -30,7 +30,7 @@ impl NoiseChannel {
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr & 0b11 {
             0 => {
-                self.enveloppe.set_register(data);
+                self.envelope.set_register(data);
                 self.length_counter.set_halt((data & 0x20) != 0);
             }
             1 => {
@@ -42,7 +42,7 @@ impl NoiseChannel {
             }
             3 => {
                 self.length_counter.set_counter(data >> 3);
-                self.enveloppe.set_start_flag();
+                self.envelope.set_start_flag();
             }
             _ => {}
         }
@@ -66,9 +66,9 @@ impl NoiseChannel {
             }
         }
 
-        // Clock the linear and length counter
+        // Clock the envelope and length counter subunits
         if sequence_mode.is_quarter_frame(cycle_count) {
-            self.enveloppe.clock();
+            self.envelope.clock();
         }
 
         if sequence_mode.is_half_frame(cycle_count) {
@@ -84,17 +84,14 @@ impl NoiseChannel {
         self.length_counter.set_enable(enable);
     }
 
-    #[inline]
     pub fn sample(&self) -> u8 {
-        // Check if muted
         if self.is_muted() {
             0
         } else {
-            self.enveloppe.volume()
+            self.envelope.volume()
         }
     }
 
-    #[inline]
     fn is_muted(&self) -> bool {
         self.shift_register & 0b1 == 1
             || self.length_counter.counter() == 0

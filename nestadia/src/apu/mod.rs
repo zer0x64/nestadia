@@ -7,9 +7,9 @@ mod pulse;
 mod triangle;
 
 use self::common::SequenceMode;
+use self::noise::NoiseChannel;
 use self::pulse::PulseChannel;
 use self::triangle::TriangleChannel;
-use self::noise::NoiseChannel;
 
 const PULSE_MIXING_TABLE: [f32; 31] = {
     let mut table = [0f32; 31];
@@ -35,7 +35,6 @@ const MAX_SAMPLES: usize = 1024;
 const SAMPLE_RATE: f32 = 44100.0;
 const CPU_FREQUENCY: f32 = 1789773.0;
 const CPU_CYCLES_PER_SAMPLE: u16 = (CPU_FREQUENCY / SAMPLE_RATE) as u16;
-// const CPU_CYCLES_PER_SAMPLE: u16 = ((CPU_FREQUENCY / SAMPLE_RATE) + 0.5) as u16;
 
 bitflags! {
     struct ChannelEnable: u8 {
@@ -60,7 +59,9 @@ pub struct Apu {
     frame_counter: u16,
     cycle_count: u16,
 
-    // Sample
+    // Sampling
+    sample_sum: f32,
+    sample_count: u16,
     samples: Vec<i16>,
 }
 
@@ -83,6 +84,8 @@ impl Apu {
             frame_counter: 0,
             cycle_count: 0,
 
+            sample_sum: 0.0,
+            sample_count: 0,
             samples: Vec::with_capacity(MAX_SAMPLES),
         }
     }
@@ -128,7 +131,7 @@ impl Apu {
                     SequenceMode::Step4
                 };
 
-                // This should be reset 2-3 cycles after the write, but now it happens immediately
+                // This should be reset 2-3 cycles after the write, but for now do it immediately
                 self.frame_counter = 0;
 
                 // When step mode is 5 steps, units are clocked immediately
@@ -179,27 +182,32 @@ impl Apu {
         self.cycle_count = (self.cycle_count + 1) % SAMPLE_RATE as u16;
     }
 
-    #[inline]
     fn mix_samples(&mut self) {
+        let pulse1 = self.pulse_channel_1.sample() * 1;
+        let pulse2 = self.pulse_channel_2.sample() * 1;
+        let triangle = self.triangle_channel.sample() * 1;
+        let noise = self.noise_channel.sample() * 1;
+        let dmc = 0;
+
+        // Lookup table mixing
+        let pulse_out = PULSE_MIXING_TABLE[(pulse1 + pulse2) as usize];
+        let tnd_out = TND_MIXING_TABLE[(3 * triangle + 2 * noise + dmc) as usize];
+
+        // self.blip_buffer.add_delta(self.cycle_count as u32, ((pulse_out + tnd_out) * i16::MAX as f32) as i32);
+
+        // self.sample_sum += pulse_out + tnd_out;
+        // self.sample_count += 1;
+
         if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
-            let pulse1 = self.pulse_channel_1.sample() * 1;
-            let pulse2 = self.pulse_channel_2.sample() * 1;
-            let triangle = self.triangle_channel.sample() * 1;
-            let noise = self.noise_channel.sample() * 1;
-            let dmc = 0;
+            // let average = self.sample_sum / self.sample_count as f32;
 
-            // Lookup table mixing
-            let pulse_out = PULSE_MIXING_TABLE[(pulse1 + pulse2) as usize];
-            let tnd_out = TND_MIXING_TABLE[(3 * triangle + 2 * noise + dmc) as usize];
+            // self.sample_sum = 0.0;
+            // self.sample_count = 0;
 
-            // log::info!("Lookup table output: {}", pulse_out + tnd_out);
-
-            // Apply filtering
+            // Remap to i16
             let output = (pulse_out + tnd_out) * i16::MAX as f32;
 
-
             self.samples.push(output as i16);
-            //log::info!("new sample: {:?}", pulse_out + tnd_out);
         }
     }
 

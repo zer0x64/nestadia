@@ -9,7 +9,7 @@ const DUTY_SEQUENCES: [[u8; 8]; 4] = [
 ];
 
 bitfield! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Default)]
     struct Sweep(u8);
     impl Debug;
 
@@ -19,15 +19,9 @@ bitfield! {
     pub enable, set_enable: 7;
 }
 
-impl Default for Sweep {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
 #[derive(Default)]
 pub struct PulseChannel {
-    enveloppe: Enveloppe,
+    envelope: Envelope,
     sweep: Sweep,
     timer: Timer,
     length_counter: LengthCounter,
@@ -48,31 +42,24 @@ impl PulseChannel {
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
-        // log::info!("PulseChannel write {:?}: {:?} ({:#010b})", addr, data, data);
         match addr & 0b11 {
             0 => {
-                self.enveloppe.set_register(data);
+                self.envelope.set_register(data);
                 self.length_counter.set_halt((data & 0x20) != 0);
-                // log::info!("Enveloppe: {:?}", self.enveloppe);
             }
             1 => {
                 self.sweep.0 = data;
                 self.sweep_reload = true;
-                // log::info!("Sweep: {:?}", self.sweep);
             }
             2 => {
                 self.timer.set_timer_lo(data);
-                // log::info!("Timer low: {:?}", self.timer);
             }
             3 => {
                 self.timer.set_timer_hi(data & 0b111);
                 self.length_counter.set_counter(data >> 3);
-                // log::info!("Timer hi: {:?}", self.timer);
-                // log::info!("LengthCounter: {:?}", self.length_counter);
 
-                self.enveloppe.set_start_flag();
+                self.envelope.set_start_flag();
                 self.duty_step = 0;
-                // log::info!("pulse reset");
             }
             _ => {}
         }
@@ -91,9 +78,9 @@ impl PulseChannel {
             }
         }
 
-        // Clock enveloppe, sweep and length counter subunits
+        // Clock envelope, sweep and length counter subunits
         if sequence_mode.is_quarter_frame(cycle_count) {
-            self.enveloppe.clock();
+            self.envelope.clock();
         }
 
         if sequence_mode.is_half_frame(cycle_count) {
@@ -102,11 +89,10 @@ impl PulseChannel {
             if self.sweep_counter == 0
                 && self.sweep.enable()
                 && self.sweep.shift_count() > 0
-                && self.timer.value() >= 8
+                && self.timer.counter() >= 8
             {
                 let target_period = self.target_period();
                 if target_period <= 0x07FF {
-                    log::info!("Sweep new timer: {}", target_period);
                     self.timer.set_timer(target_period);
                 }
             }
@@ -128,40 +114,30 @@ impl PulseChannel {
         self.length_counter.set_enable(enable);
     }
 
-    #[inline]
     pub fn sample(&self) -> u8 {
-        // Check if muted
         if self.is_muted() {
-            // log::info!("pulse muted, why: timer: {}, target_period: {}, length_counter: {}",
-            //     self.timer.value(), self.target_period(), self.length_counter.counter());
             0
         } else {
-            // log::info!("pulse volume: {}, seq: {} (duty: {}, index: {})",
-            //     self.enveloppe.volume(),
-            //     DUTY_SEQUENCES[self.enveloppe.duty() as usize][self.duty_step as usize],
-            //     self.enveloppe.duty(),
-            //     self.duty_step);
-            self.enveloppe.volume() * DUTY_SEQUENCES[self.enveloppe.duty() as usize][self.duty_step as usize]
+            self.envelope.volume() * DUTY_SEQUENCES[self.envelope.duty() as usize][self.duty_step as usize]
         }
     }
 
-    #[inline]
     fn is_muted(&self) -> bool {
-        self.timer.value() < 8
+        self.timer.counter() < 8
             || self.target_period() > 0x07FF
             || self.length_counter.counter() == 0
     }
 
     fn target_period(&self) -> u16 {
-        let change = self.timer.value() >> self.sweep.shift_count();
+        let change = self.timer.period() >> self.sweep.shift_count();
         if self.sweep.negate() {
             if self.one_complement {
-                self.timer.value().wrapping_sub(change).wrapping_sub(1)
+                self.timer.period().wrapping_sub(change).wrapping_sub(1)
             } else {
-                self.timer.value().wrapping_sub(change)
+                self.timer.period().wrapping_sub(change)
             }
         } else {
-            self.timer.value().wrapping_add(change)
+            self.timer.period().wrapping_add(change)
         }
     }
 }

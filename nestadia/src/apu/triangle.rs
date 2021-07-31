@@ -86,7 +86,7 @@ impl TriangleChannel {
             self.sequence_index = (self.sequence_index + 1) % 32;
         }
 
-        // Clock the linear and length counter
+        // Clock the linear and length counter subunits
         if sequence_mode.is_quarter_frame(cycle_count) {
             self.linear_counter.clock();
         }
@@ -109,7 +109,7 @@ impl TriangleChannel {
     }
 
     fn is_muted(&self) -> bool {
-        self.timer.value() < 2
+        self.timer.counter() < 2
             || self.linear_counter.counter() == 0
             || self.length_counter.counter() == 0
     }
