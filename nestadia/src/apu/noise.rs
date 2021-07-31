@@ -1,7 +1,7 @@
 use crate::apu::common::*;
 
 const PERIOD_TABLE: [u16; 16] = [
-    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068
+    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
 ];
 
 pub struct NoiseChannel {
@@ -53,11 +53,7 @@ impl NoiseChannel {
         if (cycle_count % 2) == 1 {
             self.timer.clock();
             if self.timer.done() {
-                let offset = if self.mode {
-                    6
-                } else {
-                    1
-                };
+                let offset = if self.mode { 6 } else { 1 };
 
                 let bit1 = self.shift_register & 0b1;
                 let bit2 = (self.shift_register >> offset) & 0b1;
@@ -93,7 +89,6 @@ impl NoiseChannel {
     }
 
     fn is_muted(&self) -> bool {
-        self.shift_register & 0b1 == 1
-            || self.length_counter.counter() == 0
+        self.shift_register & 0b1 == 1 || self.length_counter.counter() == 0
     }
 }

@@ -1,5 +1,5 @@
-use bitfield::bitfield;
 use crate::apu::common::*;
+use bitfield::bitfield;
 
 const DUTY_SEQUENCES: [[u8; 8]; 4] = [
     [0, 1, 0, 0, 0, 0, 0, 0], // 12.5%
@@ -118,7 +118,8 @@ impl PulseChannel {
         if self.is_muted() {
             0
         } else {
-            self.envelope.volume() * DUTY_SEQUENCES[self.envelope.duty() as usize][self.duty_step as usize]
+            self.envelope.volume()
+                * DUTY_SEQUENCES[self.envelope.duty() as usize][self.duty_step as usize]
         }
     }
 

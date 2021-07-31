@@ -33,19 +33,15 @@ impl Envelope {
             self.start_flag = false;
             self.decay_cycle = 15;
             self.divider = self.register.volume();
+        } else if self.divider != 0 {
+            self.divider -= 1;
         } else {
-            if self.divider != 0 {
-                self.divider -= 1;
-            } else {
-                self.divider = self.register.volume();
+            self.divider = self.register.volume();
 
-                if self.decay_cycle != 0 {
-                    self.decay_cycle -= 1;
-                } else {
-                    if self.register.envelope_loop() {
-                        self.decay_cycle = 15;
-                    }
-                }
+            if self.decay_cycle != 0 {
+                self.decay_cycle -= 1;
+            } else if self.register.envelope_loop() {
+                self.decay_cycle = 15;
             }
         }
     }
@@ -66,7 +62,7 @@ impl Envelope {
 #[derive(Clone, Copy, PartialEq)]
 pub enum SequenceMode {
     Step4,
-    Step5
+    Step5,
 }
 
 impl Default for SequenceMode {
@@ -81,7 +77,7 @@ impl SequenceMode {
             7457 | 14913 | 22371 => true,
             29829 if *self == Self::Step4 => true,
             37281 if *self == Self::Step5 => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -90,14 +86,14 @@ impl SequenceMode {
             14913 => true,
             29829 if *self == Self::Step4 => true,
             37281 if *self == Self::Step5 => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn get_max(&self) -> u16 {
         match *self {
             Self::Step4 => 29830,
-            Self::Step5 => 37282
+            Self::Step5 => 37282,
         }
     }
 }
@@ -162,8 +158,8 @@ impl LengthCounter {
 
     pub fn set_counter(&mut self, index: u8) {
         const LENGTH_COUNTER_TABLE: [u8; 32] = [
-            10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14,
-            12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30
+            10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20,
+            96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
         ];
 
         if self.enable {

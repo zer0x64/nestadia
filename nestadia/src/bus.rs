@@ -1,6 +1,6 @@
-use crate::Apu;
 use crate::cartridge::Cartridge;
 use crate::cartridge::Mirroring;
+use crate::Apu;
 use crate::Ppu;
 use crate::RAM_SIZE;
 

@@ -1567,7 +1567,7 @@ impl CpuBus<'_> {
             0..=0x1FFF => self.read_ram(addr),
             0x2000..=0x3FFF => self.read_ppu_register(addr),
             0x4000..=0x4013 | 0x4015 => self.read_apu_register(addr),
-            0x4014 => 0,                   // OAMDMA is write-only
+            0x4014 => 0, // OAMDMA is write-only
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),
             0x4018..=0x401F => 0, // APU and I/O functionality that is normally disabled.

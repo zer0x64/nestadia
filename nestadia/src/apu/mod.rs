@@ -1,5 +1,5 @@
-use bitflags::bitflags;
 use alloc::vec::{Drain, Vec};
+use bitflags::bitflags;
 
 mod common;
 mod noise;
@@ -94,7 +94,7 @@ impl Apu {
         *self = Default::default();
     }
 
-    pub fn write(&mut self, _bus: /*&mut PpuBus<'_>*/u8, addr: u16, data: u8) {
+    pub fn write(&mut self, _bus: /*&mut PpuBus<'_>*/ u8, addr: u16, data: u8) {
         match addr {
             0x4000..=0x4003 => {
                 // pulse channel 1
@@ -111,16 +111,20 @@ impl Apu {
             0x400C..=0x400F => {
                 // noise channel
                 self.noise_channel.write(addr & 0b11, data);
-            },
+            }
             0x4010..=0x4013 => {
                 // dmc
             }
             0x4015 => {
                 // channel enable and length counter status
-                self.pulse_channel_1.set_length_counter_enable((data & ChannelEnable::PULSE1_ENABLE.bits()) != 0);
-                self.pulse_channel_2.set_length_counter_enable((data & ChannelEnable::PULSE2_ENABLE.bits()) != 0);
-                self.triangle_channel.set_length_counter_enable((data & ChannelEnable::TRIANGLE_ENABLE.bits()) != 0);
-                self.noise_channel.set_length_counter_enable((data & ChannelEnable::NOISE_ENABLE.bits) != 0);
+                self.pulse_channel_1
+                    .set_length_counter_enable((data & ChannelEnable::PULSE1_ENABLE.bits()) != 0);
+                self.pulse_channel_2
+                    .set_length_counter_enable((data & ChannelEnable::PULSE2_ENABLE.bits()) != 0);
+                self.triangle_channel
+                    .set_length_counter_enable((data & ChannelEnable::TRIANGLE_ENABLE.bits()) != 0);
+                self.noise_channel
+                    .set_length_counter_enable((data & ChannelEnable::NOISE_ENABLE.bits) != 0);
             }
             0x4017 => {
                 // frame counter
@@ -145,7 +149,7 @@ impl Apu {
         }
     }
 
-    pub fn read(&mut self, _bus: /*&mut PpuBus<'_>*/u8, addr: u16) -> u8 {
+    pub fn read(&mut self, _bus: /*&mut PpuBus<'_>*/ u8, addr: u16) -> u8 {
         match addr {
             0x4000..=0x4013 | 0x4017 => {
                 log::warn!(
@@ -158,10 +162,22 @@ impl Apu {
             0x4015 => {
                 // channel enable and length counter status
                 let mut enable = ChannelEnable::empty();
-                enable.set(ChannelEnable::PULSE1_ENABLE, self.pulse_channel_1.length_counter_enable());
-                enable.set(ChannelEnable::PULSE2_ENABLE, self.pulse_channel_2.length_counter_enable());
-                enable.set(ChannelEnable::TRIANGLE_ENABLE, self.triangle_channel.length_counter_enable());
-                enable.set(ChannelEnable::NOISE_ENABLE, self.noise_channel.length_counter_enable());
+                enable.set(
+                    ChannelEnable::PULSE1_ENABLE,
+                    self.pulse_channel_1.length_counter_enable(),
+                );
+                enable.set(
+                    ChannelEnable::PULSE2_ENABLE,
+                    self.pulse_channel_2.length_counter_enable(),
+                );
+                enable.set(
+                    ChannelEnable::TRIANGLE_ENABLE,
+                    self.triangle_channel.length_counter_enable(),
+                );
+                enable.set(
+                    ChannelEnable::NOISE_ENABLE,
+                    self.noise_channel.length_counter_enable(),
+                );
 
                 enable.bits()
             }
@@ -172,10 +188,14 @@ impl Apu {
     }
 
     pub fn clock(&mut self) {
-        self.pulse_channel_1.clock(self.sequence_mode, self.frame_counter);
-        self.pulse_channel_2.clock(self.sequence_mode, self.frame_counter);
-        self.triangle_channel.clock(self.sequence_mode, self.frame_counter);
-        self.noise_channel.clock(self.sequence_mode, self.frame_counter);
+        self.pulse_channel_1
+            .clock(self.sequence_mode, self.frame_counter);
+        self.pulse_channel_2
+            .clock(self.sequence_mode, self.frame_counter);
+        self.triangle_channel
+            .clock(self.sequence_mode, self.frame_counter);
+        self.noise_channel
+            .clock(self.sequence_mode, self.frame_counter);
 
         self.mix_samples();
         self.frame_counter = (self.frame_counter + 1) % self.sequence_mode.get_max();
@@ -193,19 +213,17 @@ impl Apu {
         let pulse_out = PULSE_MIXING_TABLE[(pulse1 + pulse2) as usize];
         let tnd_out = TND_MIXING_TABLE[(3 * triangle + 2 * noise + dmc) as usize];
 
-        // self.blip_buffer.add_delta(self.cycle_count as u32, ((pulse_out + tnd_out) * i16::MAX as f32) as i32);
-
-        // self.sample_sum += pulse_out + tnd_out;
-        // self.sample_count += 1;
+        self.sample_sum += pulse_out + tnd_out;
+        self.sample_count += 1;
 
         if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
-            // let average = self.sample_sum / self.sample_count as f32;
+            let average = self.sample_sum / self.sample_count as f32;
 
-            // self.sample_sum = 0.0;
-            // self.sample_count = 0;
+            self.sample_sum = 0.0;
+            self.sample_count = 0;
 
             // Remap to i16
-            let output = (pulse_out + tnd_out) * i16::MAX as f32;
+            let output = average * i16::MAX as f32;
 
             self.samples.push(output as i16);
         }
