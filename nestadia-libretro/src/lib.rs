@@ -45,6 +45,24 @@ impl From<JoypadButton> for ControllerState {
     }
 }
 
+struct Logger;
+
+impl log::Log for Logger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            println!("{} - {}", record.level(), record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: Logger = Logger;
+
 pub struct State {
     emulator: Option<Emulator>,
     game_data: Option<GameData>,
@@ -54,6 +72,10 @@ pub struct State {
 
 impl State {
     fn new() -> State {
+        log::set_logger(&LOGGER)
+            .map(|()| log::set_max_level(log::LevelFilter::Info))
+            .unwrap();
+
         State {
             emulator: None,
             game_data: None,
@@ -140,29 +162,13 @@ impl Core for State {
         handle.upload_video_frame(&current_frame);
 
         let mut audio_buffer = Vec::with_capacity(2048);
-        audio_buffer.extend(
-            emulator.take_audio_samples().flat_map(|sample| {
-                // let sample = if sample >= 1.0 {
-                //     println!("Max sample hit");
-                //     i16::MAX
-                // } else if sample <= -1.0 {
-                //     println!("Min sample hit");
-                //     i16::MIN
-                // } else {
-                //     (sample * i16::MAX as f32) as i16
-                // };
+        audio_buffer.extend(emulator.take_audio_samples().flat_map(|sample| {
+            // Duplicate the value to transform mono audio to stereo
+            [sample, sample]
+        }));
 
-                // Duplicate the value to transform mono audio to stereo
-                [sample, sample]
-            })
-        );
-
-        // NOTE: When rounding CPU_CYCLES_PER_SAMPLE (using +0.5) to 41, there is 1454 frames
-        // so 16 frames missing. Without rounding (so 40 cpu cycles to create a sample), it generates
-        // 1490 frames, so it has enough samples. The actual accurate value is 40.5, but cpu cycles
-        // are not floats.
-        // println!("Audio buffer length: {}", audio_buffer.len());
-
+        // On the first frame, there is not enough samples for retroarch.
+        // Considering it's usually silent at that point, we can just dupe the last sample value.
         if audio_buffer.len() < 1470 {
             for _ in 0..(1470 - audio_buffer.len()) {
                 audio_buffer.push(*audio_buffer.last().unwrap());

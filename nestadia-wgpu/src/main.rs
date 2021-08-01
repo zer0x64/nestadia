@@ -10,19 +10,21 @@ use std::{
     time::{Duration, Instant},
 };
 
+use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
-use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
+#[cfg(target_os = "windows")]
+use winit::platform::windows::WindowBuilderExtWindows;
 
 use bitflags::bitflags;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
-use winit::platform::windows::WindowBuilderExtWindows;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -87,7 +89,7 @@ impl TryFrom<&VirtualKeyCode> for ControllerState {
 }
 
 // Target for NTSC is ~60 FPS
-const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 240);
+const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
 
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
@@ -142,7 +144,6 @@ struct State {
     screen_texture: wgpu::Texture,
     screen_bind_group: wgpu::BindGroup,
 
-    // audio_stream_handle: OutputStreamHandle,
     audio_sink: Sink,
 }
 
@@ -381,8 +382,7 @@ impl State {
             screen_texture,
             screen_bind_group,
 
-            // audio_stream_handle,
-            audio_sink
+            audio_sink,
         }
     }
 
@@ -509,7 +509,7 @@ impl State {
         let buffer = SamplesBuffer::new(
             1,
             44100,
-            self.emulator.take_audio_samples().collect::<Vec<_>>()
+            self.emulator.take_audio_samples().collect::<Vec<_>>(),
         );
         self.audio_sink.append(buffer);
     }
@@ -575,7 +575,9 @@ impl State {
 }
 
 fn main() {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(log::LevelFilter::Info)).unwrap();
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(log::LevelFilter::Info))
+        .unwrap();
 
     // Parse CLI options
     let opt = Opt::from_args();
@@ -597,11 +599,22 @@ fn main() {
 
     // Create the window
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("Nestadia")
-        .with_drag_and_drop(false)
-        .build(&event_loop)
-        .unwrap();
+    let window = if cfg!(target_os = "windows") {
+        // On windows, rodio / cpal COM initialization conflicts with winit.
+        // Rodio / cpal has to be initialized before winit, and drag and drop has to be disabled
+        // https://github.com/rust-windowing/winit/issues/1255
+        // https://github.com/rust-windowing/winit/issues/1185
+        WindowBuilder::new()
+            .with_title("Nestadia")
+            .with_drag_and_drop(false)
+            .build(&event_loop)
+            .unwrap()
+    } else {
+        WindowBuilder::new()
+            .with_title("Nestadia")
+            .build(&event_loop)
+            .unwrap()
+    };
 
     let mut save_path = path.clone();
     save_path.set_extension("sav");
@@ -627,29 +640,15 @@ fn main() {
         state.pause();
     }
 
-    let mut timestamps = std::collections::vec_deque::VecDeque::with_capacity(10);
-    let mut timestamp_counter = 0u8;
-
     // Handle window events
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(_) => {
-            let start = std::time::Instant::now();
             state.update();
             match state.render() {
                 Ok(_) => {}
                 Err(wgpu::SwapChainError::Lost) => state.resize(state.size),
                 Err(wgpu::SwapChainError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                 Err(e) => eprintln!("{:?}", e),
-            }
-            let end = std::time::Instant::now();
-            if timestamps.len() == 10 {
-                timestamps.pop_front();
-            }
-            timestamps.push_back((end - start).as_micros());
-            timestamp_counter = (timestamp_counter + 1) % 10;
-            if timestamp_counter == 0 {
-                let frame_time = timestamps.iter().sum::<u128>() as f64 / timestamps.len() as f64 / 1000.0f64;
-                log::info!("Average time: {} fps: {}", frame_time, 1.0f64 / (frame_time / 1000.0f64));
             }
         }
 
