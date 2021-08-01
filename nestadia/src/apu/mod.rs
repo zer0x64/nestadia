@@ -124,7 +124,7 @@ impl Apu {
                 self.triangle_channel
                     .set_length_counter_enable((data & ChannelEnable::TRIANGLE_ENABLE.bits()) != 0);
                 self.noise_channel
-                    .set_length_counter_enable((data & ChannelEnable::NOISE_ENABLE.bits) != 0);
+                    .set_length_counter_enable((data & ChannelEnable::NOISE_ENABLE.bits()) != 0);
             }
             0x4017 => {
                 // frame counter
@@ -138,9 +138,10 @@ impl Apu {
                 // This should be reset 2-3 cycles after the write, but for now do it immediately
                 self.frame_counter = 0;
 
-                // When step mode is 5 steps, units are clocked immediately
+                // When step mode is 5 steps, quarter and half frames are clocked immediately
                 if self.sequence_mode == SequenceMode::Step5 {
-                    self.clock();
+                    self.clock_quarter_frame();
+                    self.clock_half_frame();
                 }
             }
             _ => {
@@ -164,19 +165,19 @@ impl Apu {
                 let mut enable = ChannelEnable::empty();
                 enable.set(
                     ChannelEnable::PULSE1_ENABLE,
-                    self.pulse_channel_1.length_counter_enable(),
+                    self.pulse_channel_1.length_counter_active(),
                 );
                 enable.set(
                     ChannelEnable::PULSE2_ENABLE,
-                    self.pulse_channel_2.length_counter_enable(),
+                    self.pulse_channel_2.length_counter_active(),
                 );
                 enable.set(
                     ChannelEnable::TRIANGLE_ENABLE,
-                    self.triangle_channel.length_counter_enable(),
+                    self.triangle_channel.length_counter_active(),
                 );
                 enable.set(
                     ChannelEnable::NOISE_ENABLE,
-                    self.noise_channel.length_counter_enable(),
+                    self.noise_channel.length_counter_active(),
                 );
 
                 enable.bits()
@@ -188,18 +189,39 @@ impl Apu {
     }
 
     pub fn clock(&mut self) {
-        self.pulse_channel_1
-            .clock(self.sequence_mode, self.frame_counter);
-        self.pulse_channel_2
-            .clock(self.sequence_mode, self.frame_counter);
-        self.triangle_channel
-            .clock(self.sequence_mode, self.frame_counter);
-        self.noise_channel
-            .clock(self.sequence_mode, self.frame_counter);
+        // Pulse and noise channels run every second CPU cycle, while triangle runs every cycle
+        self.triangle_channel.clock();
+        if (self.frame_counter % 2) == 1 {
+            self.pulse_channel_1.clock();
+            self.pulse_channel_2.clock();
+            self.noise_channel.clock();
+        }
+
+        if self.sequence_mode.is_quarter_frame(self.frame_counter) {
+            self.clock_quarter_frame();
+        }
+
+        if self.sequence_mode.is_half_frame(self.frame_counter) {
+            self.clock_half_frame();
+        }
 
         self.mix_samples();
         self.frame_counter = (self.frame_counter + 1) % self.sequence_mode.get_max();
         self.cycle_count = (self.cycle_count + 1) % SAMPLE_RATE as u16;
+    }
+
+    fn clock_quarter_frame(&mut self) {
+        self.pulse_channel_1.clock_quarter_frame();
+        self.pulse_channel_2.clock_quarter_frame();
+        self.triangle_channel.clock_quarter_frame();
+        self.noise_channel.clock_quarter_frame();
+    }
+
+    fn clock_half_frame(&mut self) {
+        self.pulse_channel_1.clock_half_frame();
+        self.pulse_channel_2.clock_half_frame();
+        self.triangle_channel.clock_half_frame();
+        self.noise_channel.clock_half_frame();
     }
 
     fn mix_samples(&mut self) {

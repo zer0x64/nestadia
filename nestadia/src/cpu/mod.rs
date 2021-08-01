@@ -1532,7 +1532,7 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.write_ram(addr, data),
             0x2000..=0x3FFF => self.write_ppu_register(addr, data),
-            0x4000..=0x4013 | 0x4015 => self.write_apu_register(addr, data),
+            0x4000..=0x4013 | 0x4015 | 0x4017 => self.write_apu_register(addr, data),
             0x4014 => {
                 // https://wiki.nesdev.com/w/index.php/PPU_registers#OAMDMA
                 let page_begin = u16::from(data) << 8;
@@ -1555,7 +1555,6 @@ impl CpuBus<'_> {
                 // to get PPU working ASAP.
             }
             0x4016 => self.controller_write(data),
-            0x4017 => {}
             0x4018..=0x401F => (), // APU and I/O functionality that is normally disabled.
             0x4020..=0xFFFF => self.write_prg_mem(addr, data),
         };

@@ -65,49 +65,45 @@ impl PulseChannel {
         }
     }
 
-    pub fn clock(&mut self, sequence_mode: SequenceMode, cycle_count: u16) {
-        // APU clock
-        if (cycle_count % 2) == 1 {
-            self.timer.clock();
-            if self.timer.done() {
-                if self.duty_step != 7 {
-                    self.duty_step += 1;
-                } else {
-                    self.duty_step = 0;
-                }
-            }
-        }
-
-        // Clock envelope, sweep and length counter subunits
-        if sequence_mode.is_quarter_frame(cycle_count) {
-            self.envelope.clock();
-        }
-
-        if sequence_mode.is_half_frame(cycle_count) {
-            self.length_counter.clock();
-
-            if self.sweep_counter == 0
-                && self.sweep.enable()
-                && self.sweep.shift_count() > 0
-                && self.timer.counter() >= 8
-            {
-                let target_period = self.target_period();
-                if target_period <= 0x07FF {
-                    self.timer.set_timer(target_period);
-                }
-            }
-
-            if self.sweep_counter == 0 || self.sweep_reload {
-                self.sweep_counter = self.sweep.period();
-                self.sweep_reload = false;
+    pub fn clock(&mut self) {
+        self.timer.clock();
+        if self.timer.done() {
+            if self.duty_step != 7 {
+                self.duty_step += 1;
             } else {
-                self.sweep_counter -= 1;
+                self.duty_step = 0;
             }
         }
     }
 
-    pub fn length_counter_enable(&self) -> bool {
-        self.length_counter.get_enable()
+    pub fn clock_quarter_frame(&mut self) {
+        self.envelope.clock();
+    }
+
+    pub fn clock_half_frame(&mut self) {
+        self.length_counter.clock();
+
+        if self.sweep_counter == 0
+            && self.sweep.enable()
+            && self.sweep.shift_count() > 0
+            && self.timer.counter() >= 8
+        {
+            let target_period = self.target_period();
+            if target_period <= 0x07FF {
+                self.timer.set_timer(target_period);
+            }
+        }
+
+        if self.sweep_counter == 0 || self.sweep_reload {
+            self.sweep_counter = self.sweep.period();
+            self.sweep_reload = false;
+        } else {
+            self.sweep_counter -= 1;
+        }
+    }
+
+    pub fn length_counter_active(&self) -> bool {
+        self.length_counter.counter() > 0
     }
 
     pub fn set_length_counter_enable(&mut self, enable: bool) {

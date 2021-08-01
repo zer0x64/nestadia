@@ -48,32 +48,28 @@ impl NoiseChannel {
         }
     }
 
-    pub fn clock(&mut self, sequence_mode: SequenceMode, cycle_count: u16) {
-        // APU clock
-        if (cycle_count % 2) == 1 {
-            self.timer.clock();
-            if self.timer.done() {
-                let offset = if self.mode { 6 } else { 1 };
+    pub fn clock(&mut self) {
+        self.timer.clock();
+        if self.timer.done() {
+            let offset = if self.mode { 6 } else { 1 };
 
-                let bit1 = self.shift_register & 0b1;
-                let bit2 = (self.shift_register >> offset) & 0b1;
+            let bit1 = self.shift_register & 0b1;
+            let bit2 = (self.shift_register >> offset) & 0b1;
 
-                self.shift_register = (self.shift_register >> 1) | ((bit1 ^ bit2) << 14);
-            }
-        }
-
-        // Clock the envelope and length counter subunits
-        if sequence_mode.is_quarter_frame(cycle_count) {
-            self.envelope.clock();
-        }
-
-        if sequence_mode.is_half_frame(cycle_count) {
-            self.length_counter.clock();
+            self.shift_register = (self.shift_register >> 1) | ((bit1 ^ bit2) << 14);
         }
     }
 
-    pub fn length_counter_enable(&self) -> bool {
-        self.length_counter.get_enable()
+    pub fn clock_quarter_frame(&mut self) {
+        self.envelope.clock();
+    }
+
+    pub fn clock_half_frame(&mut self) {
+        self.length_counter.clock();
+    }
+
+    pub fn length_counter_active(&self) -> bool {
+        self.length_counter.counter() > 0
     }
 
     pub fn set_length_counter_enable(&mut self, enable: bool) {

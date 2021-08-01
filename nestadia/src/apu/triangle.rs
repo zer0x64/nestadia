@@ -79,25 +79,23 @@ impl TriangleChannel {
         }
     }
 
-    pub fn clock(&mut self, sequence_mode: SequenceMode, cycle_count: u16) {
-        // The triangle channel runs every CPU clock
+    pub fn clock(&mut self) {
         self.timer.clock();
         if self.timer.done() && !self.is_muted() {
             self.sequence_index = (self.sequence_index + 1) % 32;
         }
-
-        // Clock the linear and length counter subunits
-        if sequence_mode.is_quarter_frame(cycle_count) {
-            self.linear_counter.clock();
-        }
-
-        if sequence_mode.is_half_frame(cycle_count) {
-            self.length_counter.clock();
-        }
     }
 
-    pub fn length_counter_enable(&self) -> bool {
-        self.length_counter.get_enable()
+    pub fn clock_quarter_frame(&mut self) {
+        self.linear_counter.clock();
+    }
+
+    pub fn clock_half_frame(&mut self) {
+        self.length_counter.clock();
+    }
+
+    pub fn length_counter_active(&self) -> bool {
+        self.length_counter.counter() > 0
     }
 
     pub fn set_length_counter_enable(&mut self, enable: bool) {
