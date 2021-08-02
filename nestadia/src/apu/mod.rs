@@ -94,7 +94,7 @@ impl Apu {
         *self = Default::default();
     }
 
-    pub fn write(&mut self, _bus: /*&mut PpuBus<'_>*/ u8, addr: u16, data: u8) {
+    pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
             0x4000..=0x4003 => {
                 // pulse channel 1
@@ -150,7 +150,7 @@ impl Apu {
         }
     }
 
-    pub fn read(&mut self, _bus: /*&mut PpuBus<'_>*/ u8, addr: u16) -> u8 {
+    pub fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0x4000..=0x4013 | 0x4017 => {
                 log::warn!(

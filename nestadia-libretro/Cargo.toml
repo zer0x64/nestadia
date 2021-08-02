@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bitflags = "1.2.1"
+flexi_logger = "0.18.0"
 nestadia = { path = "../nestadia" }
 libretro-backend = "0.2.1"
-log = { version = "0.4", default-features = false }
+log = "0.4.14"

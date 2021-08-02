@@ -79,12 +79,12 @@ impl CpuBus<'_> {
     }
 
     pub fn write_apu_register(&mut self, addr: u16, data: u8) {
-        self.apu.write(0 /*todo*/, addr, data);
+        self.apu.write(addr, data);
     }
 
     #[track_caller]
     pub fn read_apu_register(&mut self, addr: u16) -> u8 {
-        self.apu.read(0 /*todo*/, addr)
+        self.apu.read(addr)
     }
 
     pub fn write_ppu_register(&mut self, addr: u16, data: u8) {

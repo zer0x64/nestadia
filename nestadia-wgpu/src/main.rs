@@ -28,30 +28,15 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
+    #[structopt(default_value = "info", short, long)]
+    log_level: String,
+
     #[structopt(parse(from_os_str))]
     rom: Option<PathBuf>,
 
     #[structopt(short = "p", long)]
     start_paused: bool,
 }
-
-struct Logger;
-
-impl log::Log for Logger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::Level::Info
-    }
-
-    fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            println!("{} - {}", record.level(), record.args());
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-static LOGGER: Logger = Logger;
 
 mod debugger;
 
@@ -575,12 +560,14 @@ impl State {
 }
 
 fn main() {
-    log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(log::LevelFilter::Info))
-        .unwrap();
-
     // Parse CLI options
     let opt = Opt::from_args();
+
+    // Init logger
+    flexi_logger::Logger::try_with_env_or_str(opt.log_level)
+        .unwrap()
+        .start()
+        .unwrap();
 
     // Find ROM path
     let path = if let Some(p) = opt.rom {
@@ -593,31 +580,32 @@ fn main() {
             .expect("No rom passed!")
     };
 
+    let mut save_path = path.clone();
+    save_path.set_extension("sav");
+
     // Create the audio device
     let (_audio_stream, audio_stream_handle) = OutputStream::try_default().unwrap();
     let audio_sink = Sink::try_new(&audio_stream_handle).unwrap();
 
     // Create the window
     let event_loop = EventLoop::new();
-    let window = if cfg!(target_os = "windows") {
-        // On windows, rodio / cpal COM initialization conflicts with winit.
-        // Rodio / cpal has to be initialized before winit, and drag and drop has to be disabled
-        // https://github.com/rust-windowing/winit/issues/1255
-        // https://github.com/rust-windowing/winit/issues/1185
-        WindowBuilder::new()
-            .with_title("Nestadia")
-            .with_drag_and_drop(false)
-            .build(&event_loop)
-            .unwrap()
-    } else {
-        WindowBuilder::new()
-            .with_title("Nestadia")
-            .build(&event_loop)
-            .unwrap()
-    };
 
-    let mut save_path = path.clone();
-    save_path.set_extension("sav");
+    // On windows, rodio / cpal COM initialization conflicts with winit.
+    // Rodio / cpal has to be initialized before winit, and drag and drop has to be disabled
+    // https://github.com/rust-windowing/winit/issues/1255
+    // https://github.com/rust-windowing/winit/issues/1185
+    #[cfg(target_os = "windows")]
+    let window = WindowBuilder::new()
+        .with_title("Nestadia")
+        .with_drag_and_drop(false)
+        .build(&event_loop)
+        .unwrap();
+
+    #[cfg(not(target_os = "windows"))]
+    let window = WindowBuilder::new()
+        .with_title("Nestadia")
+        .build(&event_loop)
+        .unwrap();
 
     // Read the ROM
     let rom = std::fs::read(path).expect("Could not read the ROM file");
