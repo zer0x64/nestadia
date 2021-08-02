@@ -409,12 +409,14 @@ impl State {
 
     /// Update the game state
     fn update(&mut self) {
+        let mask_reg = self.emulator.get_ppu_mask_reg();
+
         if self.paused {
             let frame = self.debugger_prompt();
 
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
-                nestadia::frame_to_rgba(&frame, &mut current_frame);
+                nestadia::frame_to_rgba(mask_reg, &frame, &mut current_frame);
 
                 // Update texture
                 let texture_size = wgpu::Extent3d {
@@ -453,7 +455,7 @@ impl State {
 
             if let Some(frame) = frame {
                 let mut current_frame = [0u8; NUM_PIXELS * 4];
-                nestadia::frame_to_rgba(&frame, &mut current_frame);
+                nestadia::frame_to_rgba(mask_reg, &frame, &mut current_frame);
 
                 // Update texture
                 let texture_size = wgpu::Extent3d {

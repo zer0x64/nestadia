@@ -31,7 +31,7 @@ pub struct Ppu {
 
     // Registers
     ctrl_reg: registers::ControlReg,
-    mask_reg: registers::MaskReg,
+    pub mask_reg: registers::MaskReg,
     status_reg: registers::StatusReg,
     oam_addr_reg: u8,
     vram_addr: registers::VramAddr,

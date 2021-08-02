@@ -152,6 +152,8 @@ impl Component for EmulatorComponent {
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        let mask_reg = self.emulator.get_ppu_mask_reg();
+
         match msg {
             EmulatorMsg::RenderFrame => {
                 // Run until there's a frame
@@ -175,7 +177,7 @@ impl Component for EmulatorComponent {
                 // Convert to RGBA
                 let mut rgba_frame = [0u8; 256 * 240 * 4];
 
-                nestadia::frame_to_rgba(&frame, &mut rgba_frame);
+                nestadia::frame_to_rgba(mask_reg, &frame, &mut rgba_frame);
 
                 // Draw image data to the canvas
                 let image_data =
