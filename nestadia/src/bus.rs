@@ -78,10 +78,14 @@ impl CpuBus<'_> {
         self.ram[(addr & (RAM_SIZE - 1)) as usize]
     }
 
+    // TODO: Cleanup if current solution is working
+    /*#[cfg(feature = "audio")]*/
     pub fn write_apu_register(&mut self, addr: u16, data: u8) {
         self.apu.write(addr, data);
     }
 
+    // TODO: Cleanup if current solution is working
+    /*#[cfg(feature = "audio")]*/
     #[track_caller]
     pub fn read_apu_register(&mut self, addr: u16) -> u8 {
         self.apu.read(addr)

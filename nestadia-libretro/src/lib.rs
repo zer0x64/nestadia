@@ -110,11 +110,17 @@ impl Core for State {
         self.emulator = Some(emulator);
         self.game_data = Some(game_data);
 
+        const SAMPLE_RATE: f32 = 44100.0;
+
+        if let Some(emulator) = &mut self.emulator {
+            emulator.set_sample_rate(SAMPLE_RATE);
+        }
+
         // This info is just what's expected and is all hard coded for now.
         // We might need to change it later if need be.
         let av_info = AudioVideoInfo::new()
             .video(256, 240, 60.00, PixelFormat::ARGB8888)
-            .audio(44100.0)
+            .audio(SAMPLE_RATE as f64)
             .region(Region::NTSC);
 
         LoadGameResult::Success(av_info)

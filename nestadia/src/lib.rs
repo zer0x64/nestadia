@@ -82,6 +82,8 @@ impl Emulator {
         if self.clock_count % 3 == 0 {
             self.clock_count = 0;
 
+            // TODO: Cleanup if current solution is working
+            /*#[cfg(feature = "audio")]*/
             self.apu.clock();
 
             if self.cpu.cycles == 0 && self.ppu.take_vblank_nmi_set_state() {
@@ -126,6 +128,12 @@ impl Emulator {
         self.cartridge.get_save_data()
     }
 
+    #[cfg(feature = "audio")]
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.apu.set_sample_rate(sample_rate);
+    }
+
+    #[cfg(feature = "audio")]
     pub fn take_audio_samples(&mut self) -> alloc::vec::Drain<i16> {
         self.apu.take_samples()
     }

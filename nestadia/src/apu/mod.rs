@@ -46,6 +46,38 @@ bitflags! {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SampleRateHandler {
+    sample_rate: f32,
+    cpu_cycles_per_samples: [u16; 2],
+    index: usize,
+}
+
+impl SampleRateHandler {
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            sample_rate,
+            cpu_cycles_per_samples: [
+                (CPU_FREQUENCY / sample_rate).floor() as u16,
+                (CPU_FREQUENCY / sample_rate).ceil() as u16
+            ],
+            index: 0
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.index = 0;
+    }
+
+    pub fn num_samples_required(&mut self) -> u16 {
+        self.cpu_cycles_per_samples[self.index]
+    }
+
+    pub fn toggle(&mut self) {
+        self.index = (self.index + 1) % 2;
+    }
+}
+
 pub struct Apu {
     // Channels
     pulse_channel_1: PulseChannel,
@@ -60,9 +92,14 @@ pub struct Apu {
     cycle_count: u16,
 
     // Sampling
+    sample_rate_handler: SampleRateHandler,
     sample_sum: f32,
     sample_count: u16,
     samples: Vec<i16>,
+
+    // IRQ
+    frame_irq_set: bool,
+    dmc_irq_set: bool,
 }
 
 impl Default for Apu {
@@ -84,16 +121,35 @@ impl Apu {
             frame_counter: 0,
             cycle_count: 0,
 
+            sample_rate_handler: SampleRateHandler::new(44100.0),
             sample_sum: 0.0,
             sample_count: 0,
             samples: Vec::with_capacity(MAX_SAMPLES),
+
+            frame_irq_set: false,
+            dmc_irq_set: false,
         }
     }
 
     pub fn reset(&mut self) {
+        let sample_rate_handler = self.sample_rate_handler.clone();
         *self = Default::default();
+        self.sample_rate_handler = sample_rate_handler;
+        self.sample_rate_handler.reset();
     }
 
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate_handler = SampleRateHandler::new(sample_rate);
+    }
+
+    pub fn take_irq_set_state(&mut self) -> bool {
+        let state = self.frame_irq_set || self.dmc_irq_set;
+        self.frame_irq_set = false;
+        self.dmc_irq_set = false;
+        state
+    }
+
+    #[cfg(feature = "audio")]
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
             0x4000..=0x4003 => {
@@ -150,6 +206,12 @@ impl Apu {
         }
     }
 
+    #[cfg(not(feature = "audio"))]
+    pub fn write(&mut self, _addr: u16, _data: u8) {
+        // DO NOTHING
+    }
+
+    #[cfg(feature = "audio")]
     pub fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0x4000..=0x4013 | 0x4017 => {
@@ -188,6 +250,12 @@ impl Apu {
         }
     }
 
+    #[cfg(not(feature = "audio"))]
+    pub fn read(&mut self, _addr: u16) -> u8 {
+        0
+    }
+
+    #[cfg(feature = "audio")]
     pub fn clock(&mut self) {
         // Pulse and noise channels run every second CPU cycle, while triangle runs every cycle
         self.triangle_channel.clock();
@@ -208,8 +276,15 @@ impl Apu {
         self.mix_samples();
         self.frame_counter = (self.frame_counter + 1) % self.sequence_mode.get_max();
         self.cycle_count = (self.cycle_count + 1) % SAMPLE_RATE as u16;
+        // self.cycle_count = (self.cycle_count + 1) % self.sample_rate_handler.sample_rate as u16;
     }
 
+    #[cfg(not(feature = "audio"))]
+    pub fn clock(&mut self) {
+        // DO NOTHING
+    }
+
+    #[cfg(feature = "audio")]
     fn clock_quarter_frame(&mut self) {
         self.pulse_channel_1.clock_quarter_frame();
         self.pulse_channel_2.clock_quarter_frame();
@@ -217,6 +292,7 @@ impl Apu {
         self.noise_channel.clock_quarter_frame();
     }
 
+    #[cfg(feature = "audio")]
     fn clock_half_frame(&mut self) {
         self.pulse_channel_1.clock_half_frame();
         self.pulse_channel_2.clock_half_frame();
@@ -224,6 +300,7 @@ impl Apu {
         self.noise_channel.clock_half_frame();
     }
 
+    #[cfg(feature = "audio")]
     fn mix_samples(&mut self) {
         let pulse1 = self.pulse_channel_1.sample() * 1;
         let pulse2 = self.pulse_channel_2.sample() * 1;
@@ -238,7 +315,9 @@ impl Apu {
         self.sample_sum += pulse_out + tnd_out;
         self.sample_count += 1;
 
-        if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
+        if self.sample_count == self.sample_rate_handler.num_samples_required() {
+        //if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
+            self.sample_rate_handler.toggle();
             let average = self.sample_sum / self.sample_count as f32;
 
             self.sample_sum = 0.0;
