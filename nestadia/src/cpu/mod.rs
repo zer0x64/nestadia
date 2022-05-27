@@ -1533,11 +1533,6 @@ impl CpuBus<'_> {
             0..=0x1FFF => self.write_ram(addr, data),
             0x2000..=0x3FFF => self.write_ppu_register(addr, data),
             0x4000..=0x4013 | 0x4015 | 0x4017 => self.write_apu_register(addr, data),
-            // TODO: Cleanup if current solution is working
-            /*{
-                #[cfg(feature = "audio")]
-                self.write_apu_register(addr, data)
-            },*/
             0x4014 => {
                 // https://wiki.nesdev.com/w/index.php/PPU_registers#OAMDMA
                 let page_begin = u16::from(data) << 8;
@@ -1570,12 +1565,7 @@ impl CpuBus<'_> {
         match addr {
             0..=0x1FFF => self.read_ram(addr),
             0x2000..=0x3FFF => self.read_ppu_register(addr),
-            // TODO: Cleanup if current solution is working
-            /*#[cfg(feature = "audio")]*/
             0x4000..=0x4013 | 0x4015 => self.read_apu_register(addr),
-            // TODO: Cleanup if current solution is working
-            /*#[cfg(not(feature = "audio"))]
-            0x4000..=0x4013 | 0x4015 => 0,*/
             0x4014 => 0, // OAMDMA is write-only
             0x4016 => self.read_controller1_snapshot(),
             0x4017 => self.read_controller2_snapshot(),

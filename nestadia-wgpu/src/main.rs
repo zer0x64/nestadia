@@ -138,9 +138,6 @@ impl AudioHandler {
     }
 
     pub fn queue_samples(&mut self, samples: Vec<i16>) {
-        // TODO: Cleanup if current solution is working
-        println!("Num samples: {}", samples.len());
-
         let buffer = SamplesBuffer::new(
             1,
             SAMPLE_RATE as u32,
@@ -534,7 +531,7 @@ impl State {
         }
 
         if let Some(audio_handler) = &mut self.audio_handler {
-            audio_handler.queue_samples(self.emulator.take_audio_samples().collect::<Vec<_>>());
+            audio_handler.queue_samples(self.emulator.take_audio_samples());
         }
     }
 
@@ -670,7 +667,6 @@ fn main() {
     // Handle window events
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(_) => {
-            // println!("RedrawRequested");
             state.update();
             match state.render() {
                 Ok(_) => {}
@@ -681,32 +677,15 @@ fn main() {
         }
 
         Event::MainEventsCleared => {
+            // Sync rendering to 60 FPS and request the next frame.
+            // Note that this locks FPS at 60, however logic and FPS are bound together on the NES so this is normal.
             let elapsed_time = state.last_frame_time.elapsed();
-            // println!("MainEventsCleared: last_frame_time: {:?}, elapsed: {:?}",
-            //          state.last_frame_time, elapsed_time);
             if elapsed_time >= FRAME_TIME {
-                // println!("elapsed > FRAME_TIME");
                 state.last_frame_time = Instant::now();
                 window.request_redraw()
             }
         }
 
-        // If renderer is free, sync with 60 FPS and request the next frame.
-        // Note that this locks FPS at 60, however logic and FPS are bound together on the NES so this is normal.
-        Event::RedrawEventsCleared => {
-            let elapsed_time = state.last_frame_time.elapsed();
-            // println!("RedrawEventsCleared: last_frame_time: {:?}, elapsed: {:?}",
-            //          state.last_frame_time, elapsed_time);
-            if elapsed_time >= FRAME_TIME {
-                // println!("elapsed > FRAME_TIME");
-                // state.last_frame_time = Instant::now();
-                // window.request_redraw()
-            } else {
-                // println!("Delay: {:?}, WaitUntil({:?})", FRAME_TIME - elapsed_time, Instant::now() + FRAME_TIME - elapsed_time);
-                *control_flow = ControlFlow::Poll
-                // *control_flow = ControlFlow::WaitUntil(Instant::now() + FRAME_TIME - elapsed_time)
-            }
-        }
         Event::WindowEvent {
             ref event,
             window_id,

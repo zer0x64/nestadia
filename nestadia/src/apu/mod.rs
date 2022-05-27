@@ -1,12 +1,14 @@
-use alloc::vec::{Drain, Vec};
+use alloc::vec::Vec;
 use bitflags::bitflags;
 
 mod common;
+mod dac;
 mod noise;
 mod pulse;
 mod triangle;
 
 use self::common::SequenceMode;
+use self::dac::Dac;
 use self::noise::NoiseChannel;
 use self::pulse::PulseChannel;
 use self::triangle::TriangleChannel;
@@ -31,11 +33,6 @@ const TND_MIXING_TABLE: [f32; 203] = {
     table
 };
 
-const MAX_SAMPLES: usize = 1024;
-const SAMPLE_RATE: f32 = 44100.0;
-const CPU_FREQUENCY: f32 = 1789773.0;
-const CPU_CYCLES_PER_SAMPLE: u16 = (CPU_FREQUENCY / SAMPLE_RATE) as u16;
-
 bitflags! {
     struct ChannelEnable: u8 {
         const PULSE1_ENABLE = 0b00000001;
@@ -43,38 +40,6 @@ bitflags! {
         const TRIANGLE_ENABLE = 0b00000100;
         const NOISE_ENABLE = 0b00001000;
         const DMC_ENABLE = 0b00010000;
-    }
-}
-
-#[derive(Debug, Clone)]
-struct SampleRateHandler {
-    sample_rate: f32,
-    cpu_cycles_per_samples: [u16; 2],
-    index: usize,
-}
-
-impl SampleRateHandler {
-    pub fn new(sample_rate: f32) -> Self {
-        Self {
-            sample_rate,
-            cpu_cycles_per_samples: [
-                (CPU_FREQUENCY / sample_rate).floor() as u16,
-                (CPU_FREQUENCY / sample_rate).ceil() as u16
-            ],
-            index: 0
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.index = 0;
-    }
-
-    pub fn num_samples_required(&mut self) -> u16 {
-        self.cpu_cycles_per_samples[self.index]
-    }
-
-    pub fn toggle(&mut self) {
-        self.index = (self.index + 1) % 2;
     }
 }
 
@@ -89,13 +54,9 @@ pub struct Apu {
     disable_interrupts: bool,
     sequence_mode: SequenceMode,
     frame_counter: u16,
-    cycle_count: u16,
 
     // Sampling
-    sample_rate_handler: SampleRateHandler,
-    sample_sum: f32,
-    sample_count: u16,
-    samples: Vec<i16>,
+    dac: Dac,
 
     // IRQ
     frame_irq_set: bool,
@@ -119,12 +80,8 @@ impl Apu {
             disable_interrupts: false,
             sequence_mode: Default::default(),
             frame_counter: 0,
-            cycle_count: 0,
 
-            sample_rate_handler: SampleRateHandler::new(44100.0),
-            sample_sum: 0.0,
-            sample_count: 0,
-            samples: Vec::with_capacity(MAX_SAMPLES),
+            dac: Default::default(),
 
             frame_irq_set: false,
             dmc_irq_set: false,
@@ -132,14 +89,13 @@ impl Apu {
     }
 
     pub fn reset(&mut self) {
-        let sample_rate_handler = self.sample_rate_handler.clone();
+        let sample_rate = self.dac.get_sample_rate();
         *self = Default::default();
-        self.sample_rate_handler = sample_rate_handler;
-        self.sample_rate_handler.reset();
+        self.set_sample_rate(sample_rate);
     }
 
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        self.sample_rate_handler = SampleRateHandler::new(sample_rate);
+        self.dac = Dac::new(sample_rate);
     }
 
     pub fn take_irq_set_state(&mut self) -> bool {
@@ -273,10 +229,8 @@ impl Apu {
             self.clock_half_frame();
         }
 
-        self.mix_samples();
+        self.dac.add_sample(self.mix_samples());
         self.frame_counter = (self.frame_counter + 1) % self.sequence_mode.get_max();
-        self.cycle_count = (self.cycle_count + 1) % SAMPLE_RATE as u16;
-        // self.cycle_count = (self.cycle_count + 1) % self.sample_rate_handler.sample_rate as u16;
     }
 
     #[cfg(not(feature = "audio"))]
@@ -301,7 +255,7 @@ impl Apu {
     }
 
     #[cfg(feature = "audio")]
-    fn mix_samples(&mut self) {
+    fn mix_samples(&self) -> f32 {
         let pulse1 = self.pulse_channel_1.sample() * 1;
         let pulse2 = self.pulse_channel_2.sample() * 1;
         let triangle = self.triangle_channel.sample() * 1;
@@ -312,25 +266,10 @@ impl Apu {
         let pulse_out = PULSE_MIXING_TABLE[(pulse1 + pulse2) as usize];
         let tnd_out = TND_MIXING_TABLE[(3 * triangle + 2 * noise + dmc) as usize];
 
-        self.sample_sum += pulse_out + tnd_out;
-        self.sample_count += 1;
-
-        if self.sample_count == self.sample_rate_handler.num_samples_required() {
-        //if (self.cycle_count % CPU_CYCLES_PER_SAMPLE) == 0 {
-            self.sample_rate_handler.toggle();
-            let average = self.sample_sum / self.sample_count as f32;
-
-            self.sample_sum = 0.0;
-            self.sample_count = 0;
-
-            // Remap to i16
-            let output = average * i16::MAX as f32;
-
-            self.samples.push(output as i16);
-        }
+        pulse_out + tnd_out
     }
 
-    pub fn take_samples(&mut self) -> Drain<i16> {
-        self.samples.drain(..)
+    pub fn take_samples(&mut self) -> Vec<i16> {
+        self.dac.take_samples()
     }
 }

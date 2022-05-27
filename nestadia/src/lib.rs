@@ -134,7 +134,7 @@ impl Emulator {
     }
 
     #[cfg(feature = "audio")]
-    pub fn take_audio_samples(&mut self) -> alloc::vec::Drain<i16> {
+    pub fn take_audio_samples(&mut self) -> alloc::vec::Vec<i16> {
         self.apu.take_samples()
     }
 
