@@ -25,7 +25,7 @@ impl Dac {
             sample_rate,
             cpu_cycles_per_samples: [
                 (CPU_FREQUENCY / sample_rate).floor() as u16,
-                (CPU_FREQUENCY / sample_rate).ceil() as u16
+                (CPU_FREQUENCY / sample_rate).ceil() as u16,
             ],
             index: 0,
 

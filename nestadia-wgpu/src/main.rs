@@ -123,26 +123,18 @@ impl AudioHandler {
         match OutputStream::try_default() {
             Ok((stream, stream_handle)) => {
                 let sink = Sink::try_new(&stream_handle).unwrap();
-                Some(
-                    Self {
-                        _stream: stream,
-                        _stream_handle: stream_handle,
-                        sink,
-                    }
-                )
-            },
-            Err(_) => {
-                None
-            },
+                Some(Self {
+                    _stream: stream,
+                    _stream_handle: stream_handle,
+                    sink,
+                })
+            }
+            Err(_) => None,
         }
     }
 
     pub fn queue_samples(&mut self, samples: Vec<i16>) {
-        let buffer = SamplesBuffer::new(
-            1,
-            SAMPLE_RATE as u32,
-            samples,
-        );
+        let buffer = SamplesBuffer::new(1, SAMPLE_RATE as u32, samples);
         self.sink.append(buffer);
     }
 }
@@ -626,20 +618,16 @@ fn main() {
     let event_loop = EventLoop::new();
 
     let window = {
-        let window_builder = WindowBuilder::new()
-            .with_title("Nestadia");
+        let window_builder = WindowBuilder::new().with_title("Nestadia");
 
         // On windows, rodio / cpal COM initialization conflicts with winit.
         // Rodio / cpal has to be initialized before winit, and drag and drop has to be disabled
         // https://github.com/rust-windowing/winit/issues/1255
         // https://github.com/rust-windowing/winit/issues/1185
         #[cfg(target_os = "windows")]
-        let window_builder = window_builder
-            .with_drag_and_drop(false);
+        let window_builder = window_builder.with_drag_and_drop(false);
 
-        window_builder
-            .build(&event_loop)
-            .unwrap()
+        window_builder.build(&event_loop).unwrap()
     };
 
     // Read the ROM
