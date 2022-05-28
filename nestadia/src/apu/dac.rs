@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use libm::{floorf, ceilf};
+use libm::{ceilf, floorf};
 
 const MAX_SAMPLES: usize = 1024;
 const CPU_FREQUENCY: f32 = 1789773.0;
