@@ -3,6 +3,23 @@ use alloc::vec::Vec;
 const MAX_SAMPLES: usize = 1024;
 const CPU_FREQUENCY: f32 = 1789773.0;
 
+/// Wasm doesn't implement `ceil()` in stable (yet), so work around by defining our own
+fn ceil(val: f32) -> f32 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // In this very specific use-case, we don't need to handle negative numbers
+        let integer = val as i32;
+        if val > integer as f32 {
+            val + 1.0
+        } else {
+            val
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    val.ceil()
+}
+
 pub struct Dac {
     sample_rate: f32,
     cpu_cycles_per_samples: [u16; 2],
@@ -24,8 +41,8 @@ impl Dac {
         Self {
             sample_rate,
             cpu_cycles_per_samples: [
-                (CPU_FREQUENCY / sample_rate).floor() as u16,
-                (CPU_FREQUENCY / sample_rate).ceil() as u16,
+                (CPU_FREQUENCY / sample_rate) as u16,
+                ceil(CPU_FREQUENCY / sample_rate) as u16,
             ],
             index: 0,
 
