@@ -1,5 +1,6 @@
 use crate::cartridge::Cartridge;
 use crate::cartridge::Mirroring;
+use crate::Apu;
 use crate::Ppu;
 use crate::RAM_SIZE;
 
@@ -12,6 +13,7 @@ macro_rules! borrow_cpu_bus {
             &mut $owner.controller1_snapshot,
             &mut $owner.controller2_snapshot,
             &mut $owner.ram,
+            &mut $owner.apu,
             &mut $owner.cartridge,
             &mut $owner.ppu,
             &mut $owner.name_tables,
@@ -32,6 +34,7 @@ pub struct CpuBus<'a> {
     controller1_snapshot: &'a mut u8,
     controller2_snapshot: &'a mut u8,
     ram: &'a mut [u8; RAM_SIZE as usize],
+    apu: &'a mut Apu,
     cartridge: &'a mut Cartridge,
     ppu: &'a mut Ppu,
     name_tables: &'a mut [u8; 1024 * 4],
@@ -46,6 +49,7 @@ impl<'a> CpuBus<'a> {
         controller1_snapshot: &'a mut u8,
         controller2_snapshot: &'a mut u8,
         ram: &'a mut [u8; RAM_SIZE as usize],
+        apu: &'a mut Apu,
         cartridge: &'a mut Cartridge,
         ppu: &'a mut Ppu,
         name_tables: &'a mut [u8; 1024 * 4],
@@ -57,6 +61,7 @@ impl<'a> CpuBus<'a> {
             controller1_snapshot,
             controller2_snapshot,
             ram,
+            apu,
             cartridge,
             ppu,
             name_tables,
@@ -71,6 +76,19 @@ impl CpuBus<'_> {
 
     pub fn read_ram(&mut self, addr: u16) -> u8 {
         self.ram[(addr & (RAM_SIZE - 1)) as usize]
+    }
+
+    // TODO: Cleanup if current solution is working
+    /*#[cfg(feature = "audio")]*/
+    pub fn write_apu_register(&mut self, addr: u16, data: u8) {
+        self.apu.write(addr, data);
+    }
+
+    // TODO: Cleanup if current solution is working
+    /*#[cfg(feature = "audio")]*/
+    #[track_caller]
+    pub fn read_apu_register(&mut self, addr: u16) -> u8 {
+        self.apu.read(addr)
     }
 
     pub fn write_ppu_register(&mut self, addr: u16, data: u8) {

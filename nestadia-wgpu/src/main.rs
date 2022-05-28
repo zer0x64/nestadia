@@ -10,11 +10,17 @@ use std::{
     time::{Duration, Instant},
 };
 
+use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamHandle, Sink};
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
+    window::Window,
     window::WindowBuilder,
 };
+
+#[cfg(target_os = "windows")]
+use winit::platform::windows::WindowBuilderExtWindows;
 
 use bitflags::bitflags;
 
@@ -23,6 +29,9 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
+    #[structopt(default_value = "info", short, long)]
+    log_level: String,
+
     #[structopt(parse(from_os_str))]
     rom: Option<PathBuf>,
 
@@ -68,6 +77,9 @@ impl TryFrom<&VirtualKeyCode> for ControllerState {
 // Target for NTSC is ~60 FPS
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / 60);
 
+// Desired sample rate is 44100 Hz
+const SAMPLE_RATE: f32 = 44100.0;
+
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
 
@@ -100,6 +112,33 @@ impl Vertex {
     }
 }
 
+struct AudioHandler {
+    _stream: OutputStream,
+    _stream_handle: OutputStreamHandle,
+    sink: Sink,
+}
+
+impl AudioHandler {
+    pub fn try_new() -> Option<Self> {
+        match OutputStream::try_default() {
+            Ok((stream, stream_handle)) => {
+                let sink = Sink::try_new(&stream_handle).unwrap();
+                Some(Self {
+                    _stream: stream,
+                    _stream_handle: stream_handle,
+                    sink,
+                })
+            }
+            Err(_) => None,
+        }
+    }
+
+    pub fn queue_samples(&mut self, samples: Vec<i16>) {
+        let buffer = SamplesBuffer::new(1, SAMPLE_RATE as u32, samples);
+        self.sink.append(buffer);
+    }
+}
+
 struct State {
     emulator: Emulator,
     controller1: ControllerState,
@@ -120,11 +159,13 @@ struct State {
 
     screen_texture: wgpu::Texture,
     screen_bind_group: wgpu::BindGroup,
+
+    audio_handler: Option<AudioHandler>,
 }
 
 impl State {
     /// Create a new state and initialize the rendering pipeline.
-    async fn new(window: &winit::window::Window, emulator: Emulator) -> Self {
+    async fn new(window: &Window, audio_handler: Option<AudioHandler>, emulator: Emulator) -> Self {
         let size = window.inner_size();
 
         // Used prefered graphic API
@@ -356,6 +397,8 @@ impl State {
 
             screen_texture,
             screen_bind_group,
+
+            audio_handler,
         }
     }
 
@@ -480,6 +523,10 @@ impl State {
                 );
             }
         }
+
+        if let Some(audio_handler) = &mut self.audio_handler {
+            audio_handler.queue_samples(self.emulator.take_audio_samples());
+        }
     }
 
     /// Render the screen
@@ -546,11 +593,10 @@ fn main() {
     // Parse CLI options
     let opt = Opt::from_args();
 
-    // Create the window
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("Nestadia")
-        .build(&event_loop)
+    // Init logger
+    flexi_logger::Logger::try_with_env_or_str(opt.log_level)
+        .unwrap()
+        .start()
         .unwrap();
 
     // Find ROM path
@@ -567,6 +613,25 @@ fn main() {
     let mut save_path = path.clone();
     save_path.set_extension("sav");
 
+    // Create the audio device
+    let audio_handler = AudioHandler::try_new();
+
+    // Create the window
+    let event_loop = EventLoop::new();
+
+    let window = {
+        let window_builder = WindowBuilder::new().with_title("Nestadia");
+
+        // On windows, rodio / cpal COM initialization conflicts with winit.
+        // Rodio / cpal has to be initialized before winit, and drag and drop has to be disabled
+        // https://github.com/rust-windowing/winit/issues/1255
+        // https://github.com/rust-windowing/winit/issues/1185
+        #[cfg(target_os = "windows")]
+        let window_builder = window_builder.with_drag_and_drop(false);
+
+        window_builder.build(&event_loop).unwrap()
+    };
+
     // Read the ROM
     let rom = std::fs::read(path).expect("Could not read the ROM file");
 
@@ -580,10 +645,11 @@ fn main() {
     };
 
     // Create the emulator
-    let emulator = Emulator::new(&rom, save_file).expect("Rom parsing failed");
+    let mut emulator = Emulator::new(&rom, save_file).expect("Rom parsing failed");
+    emulator.set_sample_rate(SAMPLE_RATE);
 
     // Wait until WGPU is ready
-    let mut state = block_on(State::new(&window, emulator));
+    let mut state = block_on(State::new(&window, audio_handler, emulator));
     if opt.start_paused {
         state.pause();
     }
@@ -600,17 +666,16 @@ fn main() {
             }
         }
 
-        // If renderer is free, sync with 60 FPS and request the next frame.
-        // Note that this locks FPS at 60, however logic and FPS are bound together on the NES so this is normal.
-        Event::RedrawEventsCleared => {
+        Event::MainEventsCleared => {
+            // Sync rendering to 60 FPS and request the next frame.
+            // Note that this locks FPS at 60, however logic and FPS are bound together on the NES so this is normal.
             let elapsed_time = state.last_frame_time.elapsed();
             if elapsed_time >= FRAME_TIME {
                 state.last_frame_time = Instant::now();
                 window.request_redraw()
-            } else {
-                *control_flow = ControlFlow::WaitUntil(Instant::now() + FRAME_TIME - elapsed_time)
             }
         }
+
         Event::WindowEvent {
             ref event,
             window_id,
