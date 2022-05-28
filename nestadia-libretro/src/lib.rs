@@ -152,7 +152,7 @@ impl Core for State {
         handle.upload_video_frame(&current_frame);
 
         let mut audio_buffer = Vec::with_capacity(2048);
-        audio_buffer.extend(emulator.take_audio_samples().flat_map(|sample| {
+        audio_buffer.extend(emulator.take_audio_samples().iter().flat_map(|sample| {
             // Duplicate the value to transform mono audio to stereo
             [sample, sample]
         }));
