@@ -14,8 +14,6 @@ use nestadia::Emulator;
 // NES outputs a 256 x 240 pixel image
 const NUM_PIXELS: usize = 256 * 240;
 
-const MOCK_AUDIO: [i16; 1470] = [0i16; 1470];
-
 bitflags! {
     #[derive(Default)]
     struct ControllerState: u8 {
@@ -56,6 +54,12 @@ pub struct State {
 
 impl State {
     fn new() -> State {
+        // Init logger
+        flexi_logger::Logger::try_with_env_or_str("info")
+            .unwrap()
+            .start()
+            .unwrap();
+
         State {
             emulator: None,
             game_data: None,
@@ -106,11 +110,17 @@ impl Core for State {
         self.emulator = Some(emulator);
         self.game_data = Some(game_data);
 
+        const SAMPLE_RATE: f32 = 44100.0;
+
+        if let Some(emulator) = &mut self.emulator {
+            emulator.set_sample_rate(SAMPLE_RATE);
+        }
+
         // This info is just what's expected and is all hard coded for now.
         // We might need to change it later if need be.
         let av_info = AudioVideoInfo::new()
             .video(256, 240, 60.00, PixelFormat::ARGB8888)
-            .audio(44100.0)
+            .audio(SAMPLE_RATE as f64)
             .region(Region::NTSC);
 
         LoadGameResult::Success(av_info)
@@ -145,7 +155,22 @@ impl Core for State {
         nestadia::frame_to_argb(mask_reg, &frame, &mut current_frame);
 
         handle.upload_video_frame(&current_frame);
-        handle.upload_audio_frame(&MOCK_AUDIO);
+
+        let mut audio_buffer = Vec::with_capacity(2048);
+        audio_buffer.extend(emulator.take_audio_samples().iter().flat_map(|sample| {
+            // Duplicate the value to transform mono audio to stereo
+            [sample, sample]
+        }));
+
+        // On the first frame, there is not enough samples for retroarch.
+        // Considering it's usually silent at that point, we can just dupe the last sample value.
+        if audio_buffer.len() < 1470 {
+            for _ in 0..(1470 - audio_buffer.len()) {
+                audio_buffer.push(*audio_buffer.last().unwrap());
+            }
+        }
+
+        handle.upload_audio_frame(&audio_buffer[..]);
 
         // Reading controller inputs
         macro_rules! update_controllers {

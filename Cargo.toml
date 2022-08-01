@@ -15,3 +15,10 @@ opt-level = 1
 [profile.release]
 codegen-units = 1
 
+# The dll crashes on Windows when compiled with optimizations, so disable *only* for that crate.
+# Looks related to https://github.com/koute/libretro-backend/issues/18
+[profile.dev.package.nestadia-libretro]
+opt-level = 0
+
+[profile.release.package.nestadia-libretro]
+opt-level = 0

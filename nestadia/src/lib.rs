@@ -5,6 +5,7 @@ extern crate alloc;
 #[macro_use]
 mod bus;
 
+mod apu;
 mod cartridge;
 mod cpu;
 mod ppu;
@@ -12,6 +13,7 @@ mod rgb_palette;
 
 pub use rgb_palette::RGB_PALETTE;
 
+pub use apu::Apu;
 pub use cartridge::RomParserError;
 pub use cpu::Cpu;
 pub use ppu::registers::MaskReg;
@@ -23,6 +25,9 @@ use crate::ppu::PpuFrame;
 pub const RAM_SIZE: u16 = 0x0800;
 
 pub struct Emulator {
+    // == APU == //
+    apu: Apu,
+
     // Cartridge is shared by CPU (PRG) and PPU (CHR)
     cartridge: Cartridge,
 
@@ -46,6 +51,8 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(rom: &[u8], save_data: Option<&[u8]>) -> Result<Self, RomParserError> {
         let mut emulator = Self {
+            apu: Default::default(),
+
             cartridge: Cartridge::load(rom, save_data)?,
 
             cpu: Default::default(),
@@ -75,6 +82,10 @@ impl Emulator {
         // CPU clock is 3 times slower
         if self.clock_count % 3 == 0 {
             self.clock_count = 0;
+
+            // TODO: Cleanup if current solution is working
+            /*#[cfg(feature = "audio")]*/
+            self.apu.clock();
 
             if self.cpu.cycles == 0 && self.ppu.take_vblank_nmi_set_state() {
                 // NMI interrupt
@@ -113,12 +124,23 @@ impl Emulator {
     pub fn reset(&mut self) {
         let mut cpu_bus = borrow_cpu_bus!(self);
         self.cpu.reset(&mut cpu_bus);
+        self.apu.reset();
         self.ppu.reset();
         self.clock_count = 0;
     }
 
     pub fn get_save_data(&self) -> Option<&[u8]> {
         self.cartridge.get_save_data()
+    }
+
+    #[cfg(feature = "audio")]
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.apu.set_sample_rate(sample_rate);
+    }
+
+    #[cfg(feature = "audio")]
+    pub fn take_audio_samples(&mut self) -> alloc::vec::Vec<i16> {
+        self.apu.take_samples()
     }
 
     #[cfg(feature = "debugger")]
