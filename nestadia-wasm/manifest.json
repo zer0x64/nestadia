@@ -1,0 +1,14 @@
+{
+    "name": "Nestadia",
+    "short_name": "Nestadia",
+    "icons": [{
+      "src": "./logo.png",
+        "sizes": "256x256",
+        "type": "image/png"
+      }],
+    "lang": "en-US",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "white",
+    "theme_color": "white"
+  }
